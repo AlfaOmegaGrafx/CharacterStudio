@@ -3,6 +3,12 @@
   top: 20px;
   right: 20px;
   z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .audioButton {
@@ -31,4 +37,76 @@
 
 .unmuted {
   opacity: 1;
+}
+
+.volumeControl {
+  width: 100px;
+  display: flex;
+  align-items: center;
+}
+
+.volumeSlider {
+  width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: #333333;
+  border-radius: 2px;
+  outline: none;
+  position: relative;
+  overflow: visible;
+  margin: 0 8px;
+  top: 0;
+}
+
+/* Blue progress bar */
+.volumeSlider::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--volume-percentage, 0%);
+  height: 100%;
+  background: #0066ff;
+  border-radius: 2px;
+  transition: width 0.1s ease;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  border: none;
+  box-shadow: none;
+  transform: translateY(-6px);
+}
+
+.volumeSlider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  position: relative;
+  z-index: 1;
+  box-shadow: none;
+  transform: translateY(-6px);
+}
+
+.volumeSlider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.volumeSlider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
 } 
