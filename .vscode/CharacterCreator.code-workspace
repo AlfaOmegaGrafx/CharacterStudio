@@ -1,9 +1,5 @@
 {
-	"folders": [
-		{
-			"path": ".."
-		}
-	],
+	"folders": [],
 	"settings": {
 		"editor.formatOnSave": false
 	}

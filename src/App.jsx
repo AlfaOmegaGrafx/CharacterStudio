@@ -5,6 +5,7 @@ import { LanguageContext } from "./context/LanguageContext"
 import { SceneContext } from "./context/SceneContext"
 import { ViewContext, ViewMode } from "./context/ViewContext"
 import { EffectManager } from "./library/effectManager"
+import GlobalAudioControl from "./components/GlobalAudioControl"
 //import { AnimationManager } from "./library/animationManager"
 import MessageWindow from "./components/MessageWindow"
 
@@ -206,7 +207,7 @@ export default function App() {
 
   return (
     <Fragment>
-      
+      <GlobalAudioControl />
       <div className="generalTitle">Character Studio</div>
 
       {/* <LanguageSwitch /> */}

@@ -634,8 +634,8 @@ export async function combine(model,avatar, options) {
                     if(mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
 
                         blendShapesFromManifest.forEach((key)=>{
-                            const influenceIndex = mesh.morphTargetDictionary![key];
-                            if(influenceIndex !== undefined && mesh.morphTargetInfluences![influenceIndex] > 0) {
+                            const influenceIndex = mesh.morphTargetDictionary[key];
+                            if(influenceIndex !== undefined && mesh.morphTargetInfluences[influenceIndex] > 0) {
                                 morphTargetsProcess.merge.add(key)
                             }else{
                                 morphTargetsProcess.remove.add(key)

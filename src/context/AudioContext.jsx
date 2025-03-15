@@ -1,6 +1,6 @@
 import React, {useState, createContext} from 'react';
 export const AudioContext = createContext();
-import bgm from "../../public/sound/background/cc_bgm_balanced.wav"
+import bgm from "../sound/background/Gravity_of_Time.mp3"
 
 export const AudioProvider = ({ children }) => {
     const [isMute, setMute] = useState(false);
