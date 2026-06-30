@@ -1,6 +1,8 @@
 # XR Floor Anchoring + Backgrounds (AR Pass-Through / VR Sky)
 
-Last updated: 2026-01-15
+Last updated: 2026-06-27
+
+> **Protected baseline (2026-06-27):** Do not regress Galaxy XR floor alignment. See `memory-bank/xr-floor-anchor-protected-state.md` and `.cursor/rules/xr-floor-anchor-protected.mdc`. Good log: `[XR][floor] AR alignment { floorAlignmentY: ~0 }` — bad: `floorAlignmentY: 1` with grid/axes in wrap.
 
 ## Goals (Current Correct Behavior)
 

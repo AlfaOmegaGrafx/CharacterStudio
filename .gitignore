@@ -332,6 +332,18 @@ docs/docs/READY_PLAYER_ME_STRATEGIC_PLAN.md
 docs/docs/TECHNICAL_ROADMAP_RPM_MIGRATION.md
 docs/docs/APPLICATION_FORM_FILLED.md
 docs/docs/LEGAL_COMPLIANCE_SUMMARY.md
+# Nested Docusaurus sync accidents (canonical copies live at docs/blog, docs/api, docs/src, docs/static)
+docs/docs/blog/
+docs/docs/api/
+docs/docs/src/
+docs/docs/static/
+docs/docs/docs/
+docs/docs/docusaurus.config.js
+docs/docs/babel.config.js
+docs/docs/package.json
+docs/docs/package-lock.json
+docs/docs/sidebars.js
+docs/docs/jsconfig.json
 WALLET_COMPARISON.md
 x402 & Thirdweb INTEGRATION_SUMMARY.md
 PRODUCTION_READINESS.md
