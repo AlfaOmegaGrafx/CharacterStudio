@@ -1,8 +1,10 @@
 # Scripts & terminal commands cheat sheet
 
-*Last updated: 2026-06-29 — API stack scripts (§5), Kimodo §7b.*
+*Last updated: 2026-06-29 — DGX post-reboot scripts (§4a), API stack (§5).*
 
 **How to read:** Every block says **machine**, **folder to open first**, **command**, and **what it does**.
+
+**Agents — after editing this file or any operator script:** `bash scripts/sync-changes-to-pc.sh --retry-until-complete` (auto-pushes Desktop mirror when this file changed). Manual Desktop-only: `bash scripts/sync-cheatsheet-to-desktop.sh`.
 
 **Secrets:** API keys and tokens live in `.env` / local MCP config only — never paste them in this file or in chat.
 
@@ -14,6 +16,7 @@
 2. [SSH between machines](#2-ssh-between-machines)
 3. [Sync files DGX ↔ Surface](#3-sync-files-dgx--surface)
 4. [Frontend dev (Surface)](#4-frontend-dev-surface)
+4a. [DGX after reboot (one command)](#4a-dgx-after-reboot-one-command)
 5. [3DAIGC API — start & restart (DGX)](#5-3daigc-api--start--restart-dgx)
 6. [3DAIGC API — logs & health (DGX)](#6-3daigc-api--logs--health-dgx)
 7. [3DAIGC API — job queue monitoring](#7-3daigc-api--job-queue-monitoring)
@@ -96,6 +99,7 @@
 | **Full sync (all DGX-owned paths)** | `bash scripts/sync-to-pc.sh` |
 | **With `src/`** | `bash scripts/sync-changes-to-pc.sh --include-src --retry-until-complete` *(only when DGX owned those edits)* |
 | **Agent context** | `bash scripts/sync-changes-to-pc.sh --include-agent-context --retry-until-complete` |
+| **Desktop mirror** (after cheatsheet edit) | `bash scripts/sync-cheatsheet-to-desktop.sh` *(also runs automatically when `docs/scripts-cheatsheet.md` is in the incremental sync)* |
 
 *`sync-changes-to-pc.sh` uses `git status` — only changed DGX-owned files. `--retry-until-complete` retries failed scp until done (max 8 rounds). Mirror of Surface `sync-changes-to-dgx.ps1`.*
 
@@ -183,6 +187,34 @@ ssh Surface-PC-Tailscale "cd <OPENNEXUS_REPO_ROOT> && set MOTION_JOB_ID=90cc20fe
 ```
 
 **Eagle Knight (SkinTokens GLB):** job `79a9f3d5-10e3-4ba0-9b7f-593aa6191455` — `skintokens_tokenrig_cli`, skeleton `bone_0`…`bone_51`. Do **not** apply VRM0 quat axis fix on SkinTokens (causes reversed limbs). VRM canned + Kimodo locked via `npm run test:anim-regression` (`vrmPlaybackLock.test.js`).
+
+---
+
+## 4a. DGX after reboot (one command)
+
+Run on **DGX** after every reboot (or when Surface says API/MSF/XR unreachable).
+
+| Profile | Where | Folder | Command |
+|---------|-------|--------|---------|
+| **Default** (API + MSF) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/start-dgx-after-reboot.sh` |
+| **+ XR voice hub** | DGX | same | `bash scripts/start-dgx-after-reboot.sh --with-xr` |
+| **+ Tailscale public routing** | DGX | same | `bash scripts/start-dgx-after-reboot.sh --with-routing` or `… --with-routing funnel` |
+| **API only** | DGX | same | `bash scripts/start-dgx-after-reboot.sh --api-only` |
+| **Skip job drain** | DGX | same | `bash scripts/start-dgx-after-reboot.sh --force` |
+| **Verify stack** | DGX | same | `bash scripts/verify-spark-dev-stack.sh` or `… --with-xr` |
+
+**What the default starts**
+
+| Service | Port | Script layer |
+|---------|------|----------------|
+| Redis (`3daigc-redis`) | 6379 | `restart_services.sh` → `ensure_redis.sh` |
+| 3DAIGC-API + scheduler | 7842 | `restart_services.sh` |
+| MySQL (`msf-mysql`) | 3306 | `MSF_Map_Svc/scripts/ensure-msf-mysql.sh` |
+| MSF Map Service | 8443 | `MSF_Map_Svc/scripts/run-msf-map-svc.sh` |
+
+**Surface (each dev session — not DGX):** `cd OpenNexus3DStudio` → `npm run dev` and `npm run dev:spark-proxies` when using MSF Scene Assembler or Galaxy XR voice.
+
+**Aliases:** `start-dgx-after-reboot.sh` → `ensure-spark-dev-services.sh`. MSF helpers: `ensure-msf-mysql.sh`, `verify-fabric-url.sh`.
 
 ---
 
@@ -427,7 +459,7 @@ Omit `JOB_ID` to list the first 5 rows in `jobs`.
 
 ## 7a. Krea 2 text-to-image (DGX)
 
-Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. OpenNexus: Task Manager → **Text to Image (Krea 2)** · model `krea2_turbo_text_to_image`.
+Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. OpenNexus: Task Manager → **Text to Image** · model `krea2_turbo_text_to_image` → completed row → **Use for Image to 3D** → **Image to 3D** (`trellis2_image_to_textured_mesh`).
 
 | Task | Where | Folder | Command |
 |------|-------|--------|---------|
@@ -435,6 +467,8 @@ Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. 
 | Deps only (weights already on disk) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/setup_krea2.sh --deps-only` |
 | Post-pip guard | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/post_pip_guard.sh` |
 | Restart API after setup/adapter change | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/restart_services.sh` |
+| **Pipeline lock verify (frontend)** | DGX or Surface | `cd OpenNexus3DStudio` | `bash scripts/verify_krea2_text_to_3d_pipeline.sh` |
+| **Pipeline lock verify (backend)** | DGX | `cd /home/sifr/3DAIGC-API` | `./venv/bin/python scripts/verify_hf_conditioning.py` |
 | Verify model listed | DGX | any | `curl -s http://127.0.0.1:7842/api/v1/system/models \| python3 -c "import json,sys; print(json.load(sys.stdin)['available_models'].get('text_to_image'))"` |
 | Smoke job (512² quick) | DGX | `cd /home/sifr/3DAIGC-API` | `curl -s -X POST http://127.0.0.1:7842/api/v1/image-generation/text-to-image -H 'Content-Type: application/json' -d '{"prompt":"a red cube on white","model_preference":"krea2_turbo_text_to_image","width":512,"height":512}'` |
 
@@ -446,7 +480,7 @@ Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. 
 
 **Canonical ops doc:** `/home/sifr/3DAIGC-API/memory-bank/krea2-text-to-image-ops.md` · rule: `3DAIGC-API/.cursor/rules/krea2-text-to-image-ops.mdc`
 
-**Frontend:** OpenNexus `memory-bank/krea2-backend-integration.md` · UI commit `745eb077` (Task Manager text-to-image). Prompt chips: remove background, full body, camera views (front/back/sides/top/bottom).
+**Frontend:** OpenNexus `memory-bank/krea2-backend-integration.md` · **locked pipeline:** `memory-bank/krea2-text-to-3d-pipeline-protected-state.md` · rule `.cursor/rules/krea2-text-to-3d-pipeline-protected.mdc`. Prompt chips: background, full body, T/A-pose (exclusive), camera views.
 
 **Multiview mesh:** `trellis_image_to_textured_mesh` + `trellis2_image_to_textured_mesh` (2–8 photos) — Task Manager **Image to 3D** multi-upload + checkbox; API `reference_image_file_ids` on `/mesh-generation/image-to-textured-mesh`.
 
@@ -707,8 +741,10 @@ Check XR service: `systemctl --user status xr-ai-3daigc-stack.service` · logs: 
 
 | Task | Where | Folder | Command |
 |------|-------|--------|---------|
-| Start/repair MSF :8443 + XR :8088 | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/ensure-spark-dev-services.sh` |
-| Verify DGX + Surface proxy paths | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/verify-spark-dev-stack.sh` |
+| **One command (preferred)** | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/start-dgx-after-reboot.sh` |
+| **+ XR voice** | DGX | same | `bash scripts/start-dgx-after-reboot.sh --with-xr` |
+| **Verify** | DGX | same | `bash scripts/verify-spark-dev-stack.sh` or `… --with-xr` |
+| Start/repair MSF :8443 + XR :8088 (low-level) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/ensure-spark-dev-services.sh` |
 
 ### When `rp1.env` URLs change only
 
@@ -722,6 +758,7 @@ Check XR service: `systemctl --user status xr-ai-3daigc-stack.service` · logs: 
 |------|-------|--------|---------|
 | Apply env → MSF settings | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/configure-from-env.sh` |
 | Start MSF + Scene Assembler | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/run-msf-map-svc.sh` |
+| Ensure MySQL only | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/ensure-msf-mysql.sh` |
 | Verify local + public fabric URL | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/verify-fabric-url.sh` |
 | Tailscale routing (default **serve** = tailnet only) | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-dgx-public-routing.sh` or `… serve` |
 | Tailscale **Funnel** (public internet — RP1 meetups) | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-dgx-public-routing.sh funnel` |
@@ -806,3 +843,5 @@ Agents should **run commands themselves** when possible. This file is the canoni
 **Also on Surface Desktop (keep in sync):**
 - `<DGX_DESKTOP_NOTES>\DGX Terminal Commands.md`
 - `<DGX_DESKTOP_NOTES>\DGX Terminal Commands.txt`
+
+After editing this cheatsheet on DGX: `bash scripts/sync-changes-to-pc.sh --retry-until-complete` pushes the repo copy **and** runs `sync-cheatsheet-to-desktop.sh` automatically.

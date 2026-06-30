@@ -1,0 +1,28 @@
+---
+description: Locked image Preview (250px panel) vs Expand (512px modal) sizing — Krea + Texture Extractor
+globs: src/components/{expandedImagePreview,ImagePanelPreview,TextureExtractor}*
+alwaysApply: false
+---
+
+# Image preview sizing — protected (do not regress)
+
+**User-confirmed (2026-06-30).** Read `memory-bank/image-preview-sizing-protected-state.md` before editing preview/modal CSS.
+
+## Preview vs Expand (never merge)
+
+| | Preview (in-panel) | Expand (click modal) |
+|--|------------------|----------------------|
+| Size | **250px** (`--panel-image-preview-height`) | **min(80vh, 512px)** (`--expand-modal-image-preview-max-height`) |
+| Krea | Task row thumb | Click overlay |
+| Texture Extractor | Grid `.texture-preview` | Detail `.texture-details-preview img` |
+
+## Rules
+
+- Do **not** change expand modal to 250px or panel preview to 512px without explicit user request.
+- Do **not** use one CSS variable for both contexts.
+- Panel preview: no hover grow; expand on click only.
+- Tokens live in `expandedImagePreview.css` only.
+
+## Protected
+
+`expandedImagePreview.css`, `ImagePanelPreview.css`, `ImagePanelPreview.jsx`, `TextureExtractor.css` (preview/modal sizing sections)

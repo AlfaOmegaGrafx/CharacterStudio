@@ -1,0 +1,43 @@
+---
+description: Locked Krea 2 text-to-image → Image to 3D chain (URL resolver, chain button, TRELLIS.2 backend)
+alwaysApply: true
+---
+
+# Krea 2 → Image-to-3D pipeline — protected (do not regress)
+
+**User-confirmed working (2026-06-30).** Read `memory-bank/krea2-text-to-3d-pipeline-protected-state.md` before editing chain, URL, or Krea/TRELLIS wiring.
+
+## Pipeline (must stay end-to-end)
+
+**Text to Image** (`krea2_turbo_text_to_image`) → completed row → **Use for Image to 3D** → **Image to 3D** (`trellis2_image_to_textured_mesh`).
+
+## Frontend rules
+
+- **One URL resolver:** `resolveTextToImageDownloadUrl(task)` for preview, download, and chain — never fetch `outputs/images/…` paths in the browser.
+- **Chain button** must: fetch via job download URL → set `image-to-3d` → attach `File` → expand Tasks panel → scroll to new-task form.
+- Text-to-image completions do **not** auto-load into the 3D viewport.
+- T-pose / A-pose chips remain **mutually exclusive**.
+
+## Backend rules (3DAIGC-API)
+
+- Do not pass yaml `init_params` metadata into adapter `__init__` without `_filter_init_params`.
+- DINOv3: `get_dinov3_encoder_layers()` only — no duplicate extractor class in `image_feature_extractor.py`.
+- After pip or TRELLIS.2 edits: `verify_hf_conditioning.py` + `restart_services.sh`.
+
+## Forbidden without explicit user request
+
+- Removing chain/download buttons from text-to-image completed rows
+- Duplicating `DinoV3FeatureExtractor` or using `model.model.layer`
+- Replacing job download URLs with filesystem paths for client fetch
+
+## Before merging touches to protected files
+
+```bash
+# OpenNexus
+bash scripts/verify_krea2_text_to_3d_pipeline.sh
+
+# 3DAIGC-API (DGX)
+./venv/bin/python scripts/verify_hf_conditioning.py
+```
+
+Protected paths: see `memory-bank/krea2-text-to-3d-pipeline-protected-state.md`.

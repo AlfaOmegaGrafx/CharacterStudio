@@ -272,6 +272,13 @@ export function resolveSplatModelForPhotos(primaryCount, referenceCount = 0) {
  * Ignores stale rig/auto-rig selections left in the task model picker state.
  */
 export function resolveMeshModelForAvatarFromImage(selectedModel, options = {}) {
+  return resolveMeshModelForMultiviewPhotos(selectedModel, options);
+}
+
+/**
+ * TRELLIS v1 multiview when 2+ photos and use_multiview_mesh (image-to-3d / avatar).
+ */
+export function resolveMeshModelForMultiviewPhotos(selectedModel, options = {}) {
   const referenceCount = Number(options.referenceCount ?? 0);
   const useMultiview = options.useMultiview !== false && referenceCount >= 1;
   if (useMultiview) {

@@ -13,7 +13,7 @@ import {
   maybeProxyApiAssetUrl,
   enrichCompletedJobPayload,
   normalizeTaskLoadPayload,
-  getTaskResultMotionUrl,
+  resolveTextToImageDownloadUrl,
   getTaskResultImageUrl,
   isTextToImageTaskResult,
   isTextToMotionTaskResult,
@@ -48,14 +48,50 @@ describe('taskModelUrl', () => {
     expect(getTaskResultMeshUrl(imageResult)).toBeNull();
     expect(getTaskResultModelUrl(imageResult)).toBeNull();
     expect(getTaskResultImageUrl(imageResult)).toBe(
-      'outputs/images/krea2_turbo_text_to_image_image_123.png',
+      '/api/v1/system/jobs/a1b2c3d4-e5f6-7890-abcd-ef1234567890/download',
     );
     expect(getTaskResultFileExtension(imageResult)).toBe('png');
     const enriched = enrichCompletedJobPayload(imageResult, imageResult.job_id, 'text-to-image');
     expect(enriched.mesh_url).toBeUndefined();
     expect(enriched.image_url).toBe(
-      'outputs/images/krea2_turbo_text_to_image_image_123.png',
+      '/api/v1/system/jobs/a1b2c3d4-e5f6-7890-abcd-ef1234567890/download',
     );
+  });
+
+  it('getTaskResultImageUrl prefers job download over filesystem output_image_path', () => {
+    const imageResult = {
+      job_id: 'img-job-1',
+      feature: 'text_to_image',
+      output_image_path: 'outputs/images/krea2_turbo_text_to_image_image_123.png',
+      modelUrl: 'http://<DGX_LAN_IP>:7842/api/v1/system/jobs/img-job-1/download',
+    };
+    expect(getTaskResultImageUrl(imageResult)).toBe(
+      'http://<DGX_LAN_IP>:7842/api/v1/system/jobs/img-job-1/download',
+    );
+  });
+
+  it('getTaskResultImageUrl falls back to job download when only job_id is present', () => {
+    expect(
+      getTaskResultImageUrl({
+        job_id: 'img-job-2',
+        feature: 'text_to_image',
+        output_image_path: 'outputs/images/foo.png',
+      }),
+    ).toBe('/api/v1/system/jobs/img-job-2/download');
+  });
+
+  it('resolveTextToImageDownloadUrl falls back from task row with filesystem path only', () => {
+    const url = resolveTextToImageDownloadUrl({
+      id: 'job_img-job-3',
+      type: 'text-to-image',
+      status: 'completed',
+      result: {
+        job_id: 'img-job-3',
+        feature: 'text_to_image',
+        output_image_path: 'outputs/images/foo.png',
+      },
+    });
+    expect(url).toBe('/api/v1/system/jobs/img-job-3/download');
   });
 
   it('text-to-motion jobs do not resolve as mesh downloads', () => {

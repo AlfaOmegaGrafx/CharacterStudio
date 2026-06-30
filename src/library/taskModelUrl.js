@@ -128,8 +128,27 @@ export function isTextToImageTaskResult(result) {
   return false;
 }
 
+export function resolveTextToImageDownloadUrl(task) {
+  const payload = normalizeTaskLoadPayload(task);
+  if (!payload) return null;
+  const url = getTaskResultImageUrl(payload);
+  if (url) return url;
+  const jobId =
+    payload.job_id ||
+    payload.jobId ||
+    (typeof task?.id === 'string' && task.id.startsWith('job_') ? task.id.slice(4) : null);
+  if (
+    jobId &&
+    (payload.feature === 'text_to_image' ||
+      task?.type === 'text-to-image' ||
+      isTextToImageTaskResult(payload))
+  ) {
+    return `/api/v1/system/jobs/${jobId}/download`;
+  }
+  return null;
+}
+
 /**
- * Download URL for generated raster images (Krea 2 text-to-image).
  * @param {object|null|undefined} result
  * @returns {string|null}
  */
@@ -140,16 +159,23 @@ export function getTaskResultImageUrl(result) {
 
   const fetchable =
     pickFetchableUrlFromObject(result, IMAGE_URL_KEYS) ||
-    pickFetchableUrlFromObject(nested, IMAGE_URL_KEYS);
+    pickFetchableUrlFromObject(nested, IMAGE_URL_KEYS) ||
+    pickFetchableUrlFromObject(result, ['image_url', 'downloadUrl', 'modelUrl', 'mesh_url']) ||
+    pickFetchableUrlFromObject(nested, ['image_url', 'downloadUrl', 'modelUrl', 'mesh_url']);
   if (fetchable) return fetchable;
 
-  const path =
-    pickUrlFromObject(result, ['output_image_path']) ||
-    pickUrlFromObject(nested, ['output_image_path']);
-  if (path) return path;
+  if (isTextToImageTaskResult(result) || result?.feature === 'text_to_image') {
+    return resolveJobDownloadPath(result) || resolveJobDownloadPath(nested);
+  }
 
-  if (isTextToImageTaskResult(result)) {
-    return resolveJobDownloadPath(result);
+  const jobId =
+    result?.job_id ||
+    result?.jobId ||
+    nested?.job_id ||
+    nested?.jobId ||
+    null;
+  if (jobId && (result?.feature === 'text_to_image' || nested?.feature === 'text_to_image')) {
+    return `/api/v1/system/jobs/${jobId}/download`;
   }
 
   return null;
@@ -575,8 +601,8 @@ export function enrichCompletedJobPayload(jobStatus, jobId = null, taskType = nu
   const imageUrl =
     pickFetchableUrlFromObject(jobStatus, IMAGE_URL_KEYS) ||
     pickFetchableUrlFromObject(nested, IMAGE_URL_KEYS) ||
-    pickUrlFromObject(jobStatus, ['output_image_path']) ||
-    pickUrlFromObject(nested, ['output_image_path']) ||
+    pickFetchableUrlFromObject(jobStatus, ['mesh_url', 'image_url']) ||
+    pickFetchableUrlFromObject(nested, ['mesh_url', 'image_url']) ||
     (isImageJob && downloadPath ? downloadPath : null);
   const motionUrl =
     pickFetchableUrlFromObject(jobStatus, ['motion_url', 'studio_motion_url']) ||

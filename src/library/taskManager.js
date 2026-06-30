@@ -2011,6 +2011,19 @@ export class TaskManager {
       taskType === 'avatar-from-image'
         ? 'avatar-from-image'
         : enriched?.pipeline || finalResult?.pipeline || null;
+
+    if (isTextToImageTaskResult(enriched) || taskType === 'text-to-image') {
+      return {
+        ...enriched,
+        pipeline,
+        feature: 'text_to_image',
+        image_url:
+          enriched?.image_url ||
+          getTaskResultImageUrl(enriched) ||
+          (jobId ? `/api/v1/system/jobs/${jobId}/download` : null),
+      };
+    }
+
     return {
       ...enriched,
       pipeline,

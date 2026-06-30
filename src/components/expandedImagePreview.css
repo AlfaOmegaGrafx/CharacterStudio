@@ -1,0 +1,63 @@
+/**
+ * LOCKED (2026-06-30): Panel preview vs expand-modal sizing.
+ * Preview (in-panel): 250px — Krea task thumb + Texture Extractor grid.
+ * Expand (click modal): min(80vh, 512px) — Krea modal + Texture detail modal.
+ * Do not conflate or change without explicit user request.
+ * See memory-bank/image-preview-sizing-protected-state.md
+ */
+:root {
+  --panel-image-preview-height: 250px;
+  --panel-image-preview-min-height: 150px;
+
+  --expand-modal-image-preview-max-height: min(80vh, 512px);
+  --expand-modal-image-preview-min-height: 200px;
+
+  --expanded-image-modal-offset-top: min(12vh, 96px);
+}
+
+.expanded-image-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--expanded-image-modal-offset-top) 1rem 1rem;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.expanded-image-modal-panel {
+  position: relative;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  padding: 1rem;
+  max-width: min(92vw, 800px);
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.expanded-image-preview-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #434343 0%, #000000 100%);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: var(--expand-modal-image-preview-min-height);
+}
+
+.expanded-image-preview-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--expand-modal-image-preview-max-height);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+}
