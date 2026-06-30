@@ -5,7 +5,11 @@ alwaysApply: true
 
 # Remember this / remember that (retention command)
 
-When the user says **“remember this”**, **“remember that”**, or equivalent (**“don’t forget”**, **“lock this in”**):
+When the user says **“remember this”**, **“remember that”**, **“lock it in”**, or equivalent (**“don’t forget”**):
+
+## “Lock it in” (stricter than remember)
+
+Follow `.cursor/rules/lock-it-in.mdc`: **protect + verify + `git commit`** on DGX. scp sync alone is not a lock.
 
 ## Required workflow (do all steps — do not only reply in chat)
 
@@ -30,7 +34,11 @@ When the user says **“remember this”**, **“remember that”**, or equivale
 
 6. **DGX ↔ Surface scp** (after file edits)  
    - Surface: `.\scripts\sync-to-dgx.ps1` (pushes `memory-bank/`, `.cursor/rules/` by default).  
-   - DGX: `bash scripts/sync-to-pc.sh --include-agent-context`.
+   - DGX: `bash scripts/reconcile-dgx-surface.sh` (or `sync-to-pc.sh --include-src --include-agent-context`).
+
+7. **Git commit (lock it in)**  
+   - `bash scripts/lock-it-in.sh --message "…"` in each repo touched.  
+   - Confirm `git log -1` and verifiers pass before saying “locked”.
 
 ## Do not
 
