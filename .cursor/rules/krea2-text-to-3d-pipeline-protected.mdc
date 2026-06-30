@@ -33,11 +33,8 @@ alwaysApply: true
 ## Before merging touches to protected files
 
 ```bash
-# OpenNexus
-bash scripts/verify_krea2_text_to_3d_pipeline.sh
-
-# 3DAIGC-API (DGX)
-./venv/bin/python scripts/verify_hf_conditioning.py
+bash scripts/verify-protected-contracts.sh
+bash scripts/lock-it-in.sh --message "feat(scope): lock <topic>"
 ```
 
-Protected paths: see `memory-bank/krea2-text-to-3d-pipeline-protected-state.md`.
+Protected paths: see `memory-bank/krea2-text-to-3d-pipeline-protected-state.md` and `scripts/protected-paths.manifest`.
