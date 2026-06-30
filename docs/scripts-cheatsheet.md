@@ -1,6 +1,6 @@
 # Scripts & terminal commands cheat sheet
 
-*Last updated: 2026-06-25 — animation playback QA (bone audit, animSmoke).*
+*Last updated: 2026-06-29 — API stack scripts (§5), Kimodo §7b.*
 
 **How to read:** Every block says **machine**, **folder to open first**, **command**, and **what it does**.
 
@@ -17,6 +17,8 @@
 5. [3DAIGC API — start & restart (DGX)](#5-3daigc-api--start--restart-dgx)
 6. [3DAIGC API — logs & health (DGX)](#6-3daigc-api--logs--health-dgx)
 7. [3DAIGC API — job queue monitoring](#7-3daigc-api--job-queue-monitoring)
+7a. [Krea 2 text-to-image (DGX)](#7a-krea-2-text-to-image-dgx)
+7b. [Kimodo text-to-motion (DGX)](#7b-kimodo-text-to-motion-dgx)
 8. [Model smoke tests (DGX)](#8-model-smoke-tests-dgx)
 9. [Avatar pipeline smoke test (DGX)](#9-avatar-pipeline-smoke-test-dgx)
 10. [SessionMem & Memory Bank](#10-sessionmem--memory-bank)
@@ -53,7 +55,7 @@
 
 **LAN IPs (typical):** Surface `<SURFACE_LAN_IP>` · DGX `<DGX_LAN_IP>` · API URL from Surface: `http://<DGX_LAN_IP>:7842` (or Vite proxy `/__dev_dgx_proxy`).
 
-**Public fabric (Tailscale Funnel):** `https://dgx-spark.<TAILNET_ID>.ts.net/` · MSF JSON: `…/fabric/sample.msf` · Scene Assembler: host **root** (not raw `.msf` in browser).
+**Public fabric (Tailscale):** tailnet **Serve** by default — `https://dgx-spark.<TAILNET_ID>.ts.net/` (tailnet members only). **Funnel** (internet) is opt-in: `bash …/setup-dgx-public-routing.sh funnel`. MSF JSON: `…/fabric/sample.msf` · Scene Assembler: host **root** (not raw `.msf` in browser). **Close public:** `tailscale funnel reset && tailscale serve reset`.
 
 ---
 
@@ -188,7 +190,24 @@ ssh Surface-PC-Tailscale "cd <OPENNEXUS_REPO_ROOT> && set MOTION_JOB_ID=90cc20fe
 
 **Repo path:** `cd /home/sifr/3DAIGC-API` (not `~/github/3DAIGC-API`).
 
-**Preferred (multi-worker + scheduler, background):** use `stop_services.sh` / `restart_services.sh` — avoids duplicate schedulers.
+**Preferred (multi-worker + scheduler, background):** use `stop_services.sh` / `restart_services.sh` — avoids duplicate schedulers. `restart_services.sh` **auto-starts Redis** and **checks scheduler source files** before launch.
+
+### Ensure Redis + scheduler continuity (before start/restart)
+
+| | |
+|--|--|
+| **Where** | **DGX** |
+| **Folder** | `cd /home/sifr/3DAIGC-API` |
+| **Commands** | |
+```bash
+bash scripts/ensure_redis.sh                  # start 3daigc-redis if down (docker)
+bash scripts/check_scheduler_continuity.sh    # fail if core/scheduler/*.py missing
+bash scripts/verify_api_stack.sh            # redis + continuity + health + pids
+bash scripts/verify_api_stack.sh --smoke-kimodo   # + short text-to-motion job
+```
+| **Does** | Prevents “scheduler up but workers crash” (missing `job_queue.py`) and “API up but no jobs” (Redis Exited) |
+
+*`ensure_redis.sh` and `check_scheduler_continuity.sh` run automatically inside `start_services_detached.sh`.*
 
 ### Stop API + scheduler (clean)
 
@@ -198,7 +217,6 @@ ssh Surface-PC-Tailscale "cd <OPENNEXUS_REPO_ROOT> && set MOTION_JOB_ID=90cc20fe
 | **Folder** | `cd /home/sifr/3DAIGC-API` |
 | **Commands** | |
 ```bash
-docker start 3daigc-redis    # if Redis container not running
 bash scripts/stop_services.sh           # graceful — drains in-flight jobs (≤5 min)
 bash scripts/stop_services.sh --force     # immediate kill, no drain
 ```
@@ -212,11 +230,10 @@ bash scripts/stop_services.sh --force     # immediate kill, no drain
 | **Folder** | `cd /home/sifr/3DAIGC-API` |
 | **Commands** | |
 ```bash
-docker start 3daigc-redis
-bash scripts/restart_services.sh          # stop (drain) + start_services_detached.sh
+bash scripts/restart_services.sh          # stop (drain) + start (redis + continuity checks)
 bash scripts/restart_services.sh --force  # skip drain
 sleep 3
-curl -s http://127.0.0.1:7842/api/v1/system/health | python3 -m json.tool
+bash scripts/verify_api_stack.sh
 ```
 | **Does** | One scheduler + uvicorn (`main_multiworker`, 4 workers) on **7842** |
 
@@ -229,7 +246,7 @@ curl -s http://127.0.0.1:7842/api/v1/system/health | python3 -m json.tool
 | **Commands** | |
 ```bash
 source scripts/env_local_gpu.sh
-bash scripts/start_services_detached.sh
+bash scripts/start_services_detached.sh   # ensure_redis + continuity checks built in
 ```
 | **Does** | Refuses to start if scheduler/API already running — run `stop_services.sh` first |
 
@@ -254,11 +271,10 @@ Optional worker idle unload (scheduler env): `P3D_WORKER_IDLE_SEC=900` (15 min d
 | **Folder** | `cd /home/sifr/3DAIGC-API` |
 | **Commands** | |
 ```bash
-docker start 3daigc-redis    # if Redis container not running
 source scripts/env_local_gpu.sh
 ./scripts/run_local_venv.sh
 ```
-| **Does** | Single-worker API on port **7842**; terminal stays attached |
+| **Does** | Single-worker API on port **7842**; terminal stays attached. `run_server.sh` calls `ensure_redis.sh` first. |
 
 ### Restart (foreground — single-worker dev)
 
@@ -406,6 +422,57 @@ All on **DGX** in `/home/sifr/3DAIGC-API` unless noted.
 | **Does** | Prints `(job_id, status, feature)` or `NOT_IN_SQLITE` — diagnostic only; does not fix API 404 |
 
 Omit `JOB_ID` to list the first 5 rows in `jobs`.
+
+---
+
+## 7a. Krea 2 text-to-image (DGX)
+
+Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. OpenNexus: Task Manager → **Text to Image (Krea 2)** · model `krea2_turbo_text_to_image`.
+
+| Task | Where | Folder | Command |
+|------|-------|--------|---------|
+| Install deps (+ optional weights) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/setup_krea2.sh` |
+| Deps only (weights already on disk) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/setup_krea2.sh --deps-only` |
+| Post-pip guard | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/post_pip_guard.sh` |
+| Restart API after setup/adapter change | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/restart_services.sh` |
+| Verify model listed | DGX | any | `curl -s http://127.0.0.1:7842/api/v1/system/models \| python3 -c "import json,sys; print(json.load(sys.stdin)['available_models'].get('text_to_image'))"` |
+| Smoke job (512² quick) | DGX | `cd /home/sifr/3DAIGC-API` | `curl -s -X POST http://127.0.0.1:7842/api/v1/image-generation/text-to-image -H 'Content-Type: application/json' -d '{"prompt":"a red cube on white","model_preference":"krea2_turbo_text_to_image","width":512,"height":512}'` |
+
+**Weights:** `pretrained/krea/Krea-2-Turbo` (~57 GB). **VRAM:** ~32 GB reserved per worker (`config/models.yaml`).
+
+**Env:** `TEXT_ENCODER_DEVICE=cpu` in `.env` (optional headroom — adapter honors it for Qwen3-VL text encoder).
+
+**Pitfalls (fixed in adapter Jun 2026):** Krea checkpoint uses `rope_parameters` (transformers 5.x export) — adapter maps to `rope_scaling` for pinned transformers **4.57.3**. `Krea2Pipeline` requires **pinned diffusers git** (`setup_krea2.sh`), not PyPI 0.32/0.38 alone.
+
+**Canonical ops doc:** `/home/sifr/3DAIGC-API/memory-bank/krea2-text-to-image-ops.md` · rule: `3DAIGC-API/.cursor/rules/krea2-text-to-image-ops.mdc`
+
+**Frontend:** OpenNexus `memory-bank/krea2-backend-integration.md` · UI commit `745eb077` (Task Manager text-to-image). Prompt chips: remove background, full body, camera views (front/back/sides/top/bottom).
+
+**Multiview mesh:** `trellis_image_to_textured_mesh` + `trellis2_image_to_textured_mesh` (2–8 photos) — Task Manager **Image to 3D** multi-upload + checkbox; API `reference_image_file_ids` on `/mesh-generation/image-to-textured-mesh`.
+
+---
+
+## 7b. Kimodo text-to-motion (DGX)
+
+NVIDIA Kimodo SOMA skeleton → `studio_motion.json` for VRM playback. OpenNexus: animation bar **KimodoMotionPromptBar**.
+
+| Task | Where | Folder | Command |
+|------|-------|--------|---------|
+| Setup Kimodo venv + deps | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/setup_kimodo.sh` |
+| Prefetch Llama + Kimodo weights | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/prefetch_kimodo_deps.sh` |
+| Restart + verify stack | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/restart_services.sh && bash scripts/verify_api_stack.sh` |
+| Full smoke (motion job) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/verify_api_stack.sh --smoke-kimodo` |
+| Drift check (isolated venv) | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/check_kimodo_venv_drift.sh` |
+
+**Env:** `TEXT_ENCODER_DEVICE=cpu` in `.env` · `worker_load_timeout_sec: 3600` on `kimodo_text_to_motion` in `config/models.yaml`.
+
+**Normal logs:** `Text encoder service is unreachable, falling back to local LLM2Vec encoder` — expected without sidecar.
+
+**Pitfalls:** `Worker process exited before model load` often means **Redis down** (`3daigc-redis` Exited) or **scheduler `.py` files deleted** — not Kimodo weights. Run `check_scheduler_continuity.sh` + `ensure_redis.sh` before blaming Llama cache.
+
+**Canonical ops:** `/home/sifr/3DAIGC-API/memory-bank/kimodo-text-to-motion-ops.md` · rule: `3DAIGC-API/.cursor/rules/kimodo-text-to-motion-ops.mdc`
+
+**Frontend:** `npm run test:bone-audit` with `MOTION_JOB_ID=…` (Surface §4).
 
 ---
 
@@ -656,7 +723,10 @@ Check XR service: `systemctl --user status xr-ai-3daigc-stack.service` · logs: 
 | Apply env → MSF settings | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/configure-from-env.sh` |
 | Start MSF + Scene Assembler | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/run-msf-map-svc.sh` |
 | Verify local + public fabric URL | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/verify-fabric-url.sh` |
-| Tailscale Funnel exposure | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-tailscale-exposure.sh` |
+| Tailscale routing (default **serve** = tailnet only) | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-dgx-public-routing.sh` or `… serve` |
+| Tailscale **Funnel** (public internet — RP1 meetups) | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-dgx-public-routing.sh funnel` |
+| Simple MSF-only expose (alternate script) | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/setup-tailscale-exposure.sh` *(default serve; pass `funnel` for public)* |
+| Close Tailscale Serve + Funnel | DGX | any | `tailscale funnel reset && tailscale serve reset` |
 | Seed GLB into map DB | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/seed-map-object.sh [path/to/model.glb] [object-name.glb]` |
 | Sync MSF vars → 3DAIGC-API | DGX | `cd /home/sifr/3DAIGC-API` | `bash scripts/sync-spatial-fabric-env.sh` |
 | Set Scene Assembler login key | DGX | `cd /home/sifr/MSF_Map_Svc` | `bash scripts/set-msf-edit-key.sh 'your-key'` |
@@ -716,6 +786,7 @@ Artifact: `builds/linux-arm64/install/release/lib/libSneeze.a`. More: `Sneeze/do
 | `capture-nativeFaceRelay-logcat.ps1` | `.\scripts\capture-apk-logcat.ps1` |
 | SessionMem folder `CharacterStudio/` | `.sessionmem-team/OpenNexus3DStudio/` |
 | Manual `pkill` scheduler/API only | `bash scripts/stop_services.sh` then `start_services_detached.sh` or `restart_services.sh` |
+| Manual `docker start 3daigc-redis` before every restart | `bash scripts/restart_services.sh` *(calls `ensure_redis.sh` automatically)* |
 | `builds/.../bin/WasmTest` / `NetTest` | `SneezeTest --wasm --net` (unified test runner) |
 | Restart API without stopping scheduler | `bash scripts/restart_services.sh` *(always stop scheduler first)* |
 
