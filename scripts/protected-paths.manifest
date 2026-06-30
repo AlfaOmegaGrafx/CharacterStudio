@@ -1,0 +1,102 @@
+# OpenNexus3DStudio — protected paths (DGX canonical during reconcile).
+# One repo-relative path per line. Lines starting with # are ignored.
+# Source: memory-bank/*-protected-state.md + .cursor/rules/*-protected.mdc
+
+# --- Krea 2 text-to-image -> Image-to-3D pipeline ---
+src/library/taskModelUrl.js
+src/library/taskManager.js
+src/components/TaskManager.jsx
+src/library/aiModelsCatalog.js
+src/library/textToImagePromptOptions.js
+src/components/ImagePanelPreview.jsx
+src/components/ImagePanelPreview.css
+src/components/TextToImagePromptOptions.jsx
+src/components/expandedImagePreview.css
+src/__tests__/krea2TextTo3dPipeline.contract.test.js
+src/__tests__/textToImagePromptOptions.test.js
+src/__tests__/taskModelUrl.test.js
+scripts/verify_krea2_text_to_3d_pipeline.sh
+scripts/verify-protected-contracts.sh
+.cursor/rules/krea2-text-to-3d-pipeline-protected.mdc
+docs/scripts-cheatsheet.md
+
+# --- Image preview sizing ---
+.cursor/rules/image-preview-sizing-protected.mdc
+src/components/TextureExtractor.css
+
+# --- VRM upload ---
+src/library/vrmLoader.js
+src/library/sceneManager.js
+src/library/rigBoneUtils.js
+src/library/VRMExporter.js
+src/library/characterManager.js
+src/library/vrmManager.js
+src/library/load-utils.js
+src/library/modelOrientationUtils.js
+.cursor/rules/vrm-upload-protected.mdc
+
+# --- VRM animation playback ---
+src/library/animationManager.js
+src/library/loadMixamoAnimation.js
+src/library/kimodoMotionLoader.js
+src/library/viewportExpressionVrm.js
+src/library/vrmMixamoPlaybackGuard.js
+src/library/studioAnimations.js
+src/__tests__/loadMixamoAnimation.test.js
+src/__tests__/animationManager.playback.test.js
+src/__tests__/kimodoMotionLoader.test.js
+src/__tests__/vrmMixamoPlaybackGuard.test.js
+.cursor/rules/vrm-animation-protected.mdc
+.cursor/rules/opennexus3d-vrm-animation-playback.mdc
+
+# --- App chrome layout ---
+src/App.jsx
+src/App.css
+src/components/TaskProgressBar.jsx
+src/components/TaskProgressBar.css
+.cursor/rules/app-chrome-layout-protected.mdc
+.cursor/rules/sidebar-z-index.mdc
+.cursor/rules/collapsed-rail-icons.mdc
+
+# --- Spatial fabric / RP1 ---
+src/library/spatialFabricAdapter.js
+src/hooks/useSpatialFabric.js
+src/components/GLBExport.jsx
+src/components/WorldLibrary.jsx
+src/__tests__/spatialFabricAdapter.test.js
+.cursor/rules/spatial-fabric-rp1-protected.mdc
+.cursor/rules/spacetime-moat-protected.mdc
+
+# --- XR floor anchoring ---
+src/library/worldSceneLoader.js
+.cursor/rules/xr-floor-anchor-protected.mdc
+
+# --- Sync / pitch deck (never regress sync topology) ---
+.cursor/rules/pitch-deck-sync-protected.mdc
+.cursor/rules/dgx-sync-reminder.mdc
+.cursor/rules/surface-sync-reminder.mdc
+scripts/sync-changes-lib.sh
+scripts/sync-changes-to-pc.sh
+scripts/sync-to-pc.sh
+sync-to-pc.sh
+sync-from-dgx.ps1
+scripts/sync-from-dgx.ps1
+scripts/sync-to-dgx.ps1
+scripts/sync-changes-to-dgx.ps1
+scripts/sync-dgx-push-lib.ps1
+scripts/sync-lock-utils.sh
+scripts/prune-sync-duplicates.sh
+scripts/reconcile-dgx-surface.sh
+scripts/reconcile-surface-to-dgx.sh
+scripts/protected-paths-lib.sh
+scripts/protected-paths.manifest
+scripts/lock-it-in.sh
+.cursor/rules/lock-it-in.mdc
+
+# --- Agent ops (do not overwrite DGX canonical ops rules) ---
+.cursor/rules/agent-run-instructions.mdc
+.cursor/rules/new-scripts-ops-cheatsheet.mdc
+.cursor/rules/terse-debug-ops.mdc
+.cursor/rules/no-guess-use-data.mdc
+.cursor/rules/security-local-only.mdc
+.cursor/rules/remote-log-first.mdc

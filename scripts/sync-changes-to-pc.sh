@@ -83,6 +83,12 @@ if [[ "$rc" -ne 0 ]]; then
   exit 1
 fi
 
+if printf '%s\n' "${CHANGED[@]}" | grep -qxF 'docs/scripts-cheatsheet.md'; then
+  echo ""
+  echo "Cheatsheet changed — syncing Desktop mirror ..."
+  bash "${ROOT}/scripts/sync-cheatsheet-to-desktop.sh"
+fi
+
 if printf '%s\n' "${CHANGED[@]}" | grep -qE '^Pitch Deck/'; then
   echo ""
   echo "Pitch Deck changed — pruning nested sync duplicates on DGX ..."

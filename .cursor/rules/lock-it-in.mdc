@@ -1,0 +1,45 @@
+---
+description: "Lock it in" means protect AND git commit — never rules/memory without commit
+alwaysApply: true
+---
+
+# Lock it in — protect + commit (mandatory)
+
+When the user says **lock it in**, **locked**, or equivalent for a feature/pipeline:
+
+## Required (all steps, same session)
+
+1. **Document** — `memory-bank/<topic>-protected-state.md` + `.cursor/rules/<topic>-protected.mdc`
+2. **Manifest** — add paths to `scripts/protected-paths.manifest`
+3. **Verify** — contract script(s) under `scripts/verify_*.sh` or vitest tests
+4. **Git commit** — run `bash scripts/lock-it-in.sh` (OpenNexus) or `bash scripts/lock-it-in.sh` (3DAIGC-API)
+5. **Sync** — `bash scripts/reconcile-dgx-surface.sh` (or `sync-to-pc.sh --include-src` + protected push)
+6. **Confirm** — `git log -1 --oneline` shows the lock commit; verifiers pass
+
+## Definition of done
+
+**Not done** if only memory-bank / rules / sync exist without a **git commit** on DGX.
+
+**Not done** if protected files differ from `HEAD` after the user asked to lock.
+
+## OpenNexus
+
+```bash
+bash scripts/verify-protected-contracts.sh
+bash scripts/lock-it-in.sh --message "feat(scope): lock <topic>"
+bash scripts/reconcile-dgx-surface.sh
+```
+
+## 3DAIGC-API
+
+```bash
+./venv/bin/python scripts/verify_hf_conditioning.py
+bash scripts/lock-it-in.sh --message "feat(scope): lock <topic>"
+bash scripts/reconcile-api-to-surface.sh
+```
+
+## Do not
+
+- Create `.mdc` / memory-bank / verify scripts and stop before `git commit`
+- `git restore` protected paths from stale HEAD (drops newer locked working tree)
+- Treat scp sync as a substitute for commit

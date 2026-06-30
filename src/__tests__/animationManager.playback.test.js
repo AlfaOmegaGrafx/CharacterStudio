@@ -57,4 +57,37 @@ describe('AnimationManager playback controls', () => {
     expect(manager.getSpeed()).toBe(-1);
     expect(control.setTimeScale).toHaveBeenCalledWith(-1);
   });
+
+  it('uses only primary VRM control when uploaded VRM is primary', () => {
+    const manager = new AnimationManager();
+    const fbxControl = { vrm: null, update: vi.fn() };
+    const vrm = { scene: { userData: {} } };
+    const vrmControl = { vrm, update: vi.fn() };
+    manager.mainControl = fbxControl;
+    manager.animationControls = [fbxControl, vrmControl];
+    manager.primaryAnimationVrm = vrm;
+
+    const active = manager._getActiveAnimationControls();
+    expect(active).toEqual([vrmControl]);
+  });
+
+  it('silences orphan FBX mixer when VRM is primary', () => {
+    const manager = new AnimationManager();
+    const stopAllAction = vi.fn();
+    manager.primaryAnimationVrm = { scene: {} };
+    manager.mainControl = {
+      vrm: null,
+      mixer: { stopAllAction },
+      actions: [{}],
+      fadeOutActions: [{}],
+      from: {},
+      to: {},
+    };
+
+    manager._silenceOrphanFbxMixer();
+
+    expect(stopAllAction).toHaveBeenCalled();
+    expect(manager.mainControl.actions).toEqual([]);
+    expect(manager.mainControl.fadeOutActions).toBeNull();
+  });
 });

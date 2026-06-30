@@ -1,0 +1,35 @@
+---
+description: VRM Mixamo presets + Kimodo playback — locked good state (do not regress)
+alwaysApply: true
+---
+
+# VRM animation playback — protected (do not regress)
+
+**User-confirmed good state (2026-06-27).** Read `memory-bank/vrm-animation-protected-state.md` before editing Mixamo retarget, loot presets, Kimodo apply, or `AnimationManager` primary-target logic.
+
+## Invariants
+
+| Area | Rule |
+|------|------|
+| Primary mixer | When `primaryAnimationVrm` set → `_getActiveAnimationControls()` returns **VRM control only**; `_silenceOrphanFbxMixer()` stops orphan FBX mixer |
+| Preset swap | `quickChange` + `weightIn=1` / `weightOut=0` when primary VRM; no cross-fade stacking |
+| Kimodo | `setPrimaryAnimationVrm` + single clip + silence orphan FBX |
+| VRM0 retarget | Standard axis flip for `metaVersion === '0'` on **all** bones (legs + shoulders + arms) |
+| Shoulders | **Do not skip** `mixamorigLeftShoulder` / `mixamorigRightShoulder` on passthrough |
+| Scene yaw | `withNeutralVrmSceneRootForRetarget` only during retarget sampling — restore after |
+| Tracks | Normalized humanoid bone names; `vrmMixamoPlaybackGuard` not bypassed |
+
+## Forbidden without explicit user request
+
+- Disabling VRM0 quat/vector flip on passthrough uploads (causes buckled knees).
+- Skipping shoulder tracks on passthrough (causes twisted arms).
+- Running FBX reference mixer alongside primary VRM mixer (causes layering).
+- Passthrough-only animation “shortcuts” in `loadMixamoAnimation.js` / `kimodoMotionLoader.js` without user approval.
+
+## Protected files
+
+`animationManager.js`, `loadMixamoAnimation.js`, `kimodoMotionLoader.js`, `viewportExpressionVrm.js`, `vrmMixamoPlaybackGuard.js`, `studioAnimations.js`
+
+## Before merging
+
+Re-test Sifr2 upload → Walking preset → Kimodo. Run animation regression tests listed in `memory-bank/vrm-animation-protected-state.md`.

@@ -7,8 +7,7 @@ import {
   prepareVrmForMixamoRetarget,
   resolveVrmBoneTrackName,
 } from './loadMixamoAnimation';
-import { renameVRMBones } from './utils';
-import { getAsArray, getFileNameWithoutExtension } from './utils';
+import { getAsArray, getFileNameWithoutExtension, renameVRMBones } from './utils';
 import { loadStudioAnimationAtIndex } from './studioAnimations';
 
 const MIXER_DELTA = 1 / 30;
@@ -113,7 +112,11 @@ class AnimationControl {
           animations = [mixamoAnimation]
           this.mixamoModel = mixamoModel;
         } else {
-          console.warn('[AnimationManager] Mixamo retarget failed for VRM; clip will not play.');
+          const passthrough = this.vrm?.scene?.userData?.vrmBindPassthrough;
+          console.warn(
+            '[AnimationManager] Mixamo retarget failed for VRM; clip will not play.',
+            { passthrough, clipCount: animations?.length ?? 0 },
+          );
           animations = [];
         }
       }
@@ -154,6 +157,8 @@ class AnimationControl {
       }
     }
     else{
+      this.mixer.stopAllAction();
+      this.fadeOutActions = null;
       this.actions.forEach(action => {
         action.weight = 0;
         action.stop();
@@ -308,10 +313,22 @@ export class AnimationManager{
 
   _getActiveAnimationControls() {
     const primary = this.primaryAnimationVrm;
-    return this.animationControls.filter((control) => {
-      if (!control.vrm) return true;
-      return primary != null && control.vrm === primary;
-    });
+    if (primary) {
+      return this.animationControls.filter((control) => control.vrm === primary);
+    }
+    return this.animationControls;
+  }
+
+  /** FBX reference mixer must not run alongside primary VRM playback (causes layered limbs). */
+  _silenceOrphanFbxMixer() {
+    if (!this.primaryAnimationVrm || !this.mainControl?.mixer || this.mainControl.vrm) {
+      return;
+    }
+    this.mainControl.mixer.stopAllAction();
+    this.mainControl.fadeOutActions = null;
+    this.mainControl.from = null;
+    this.mainControl.to = null;
+    this.mainControl.actions = [];
   }
   
   setScale (scale){
@@ -356,15 +373,26 @@ export class AnimationManager{
       this.animationControls.push(this.mainControl);
     }
 
+    const quickChange = isPose || Boolean(this.primaryAnimationVrm);
     this.animationControls.forEach((animationControl) => {
       animationControl.setAnimations(
         animationModel.animations,
         this.mixamoModel,
         this.mouseLookEnabled,
-        isPose,
+        quickChange,
       );
       animationControl.syncPlaybackActions(this.curAnimID, this.lastAnimID);
+      if (quickChange) {
+        animationControl.from = null;
+        animationControl.fadeOutActions = null;
+      }
     });
+
+    if (this.primaryAnimationVrm) {
+      this.weightIn = 1;
+      this.weightOut = 0;
+      this._silenceOrphanFbxMixer();
+    }
 
     // Drop trait/accessory controls that could not retarget (no rig / partial VRM).
     const deadControls = this.animationControls.filter(

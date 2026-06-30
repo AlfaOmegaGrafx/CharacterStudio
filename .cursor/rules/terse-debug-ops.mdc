@@ -1,0 +1,47 @@
+---
+description: Implicit or explicit failure signals → full debug/fix ops workflow; infer intent, never require exact wording
+alwaysApply: true
+---
+
+# Failure signals → full debug/fix workflow (explicit **or** implicit)
+
+The user will **not** always say `debug` or `job failed`. Treat **any message whose intent is “something is wrong — make it work”** as this workflow — including screenshots, one-word reactions, rhetorical questions, or complaints about missing behavior.
+
+**Read between the lines.** Use conversation arc + open files + last task/feature — not a keyword list.
+
+## Intent patterns (examples only — not a checklist to match literally)
+
+| Implicit signal | Likely intent |
+|-----------------|---------------|
+| Screenshot of failed/completed task with no question | Something in that UI is broken or incomplete |
+| “Where is the preview?” / “buttons don't work” | Frontend or URL path failed — go to logs |
+| “Still?” / “Same problem” / “Didn't sync” | Prior fix incomplete — verify + finish done hygiene |
+| “I shouldn't have to tell you…” | Encode rule + **execute** what's missing now |
+| Short sentence + image of error UI | Full debug — do not ask what they clicked |
+| Comparison to expected (“should show X”) | Gap between spec and behavior — investigate |
+
+When intent is ambiguous between **question-only** vs **fix-it**: if the user is in an active dev session and points at broken product behavior, **default to fix-it ops**, not a lecture.
+
+## Execute this sequence (no permission menu)
+
+1. **Infer scope** — job id, task type, feature from chat, screenshot, remote log, or latest `scheduler.log`.
+2. **Evidence first** (`no-guess-use-data.mdc`, `remote-log-first.mdc`):
+   - Surface: `logs/remote-log.txt`
+   - DGX: `3DAIGC-API/logs/scheduler.log`, `api.log`
+   - API: `curl` `/api/v1/system/jobs/{id}`
+3. **Feature ops doc** — `memory-bank/*-ops.md` + `*-ops.mdc` for that feature.
+4. **Fix** — minimal diff; protected-state + pip guardrails.
+5. **Verify** — re-run the path that failed.
+6. **Done hygiene** — sync Surface repo, **Desktop cheatsheet mirror** if ops doc changed, memory (same session).
+7. **Report briefly** — evidence → fix → verified.
+
+## Never
+
+- Require exact trigger words before running logs
+- Ask “what error did you see?” when logs exist
+- End at diagnosis without fix + verify (unless truly blocked)
+- Ask “should I sync / update cheatsheet?” — see `new-scripts-ops-cheatsheet.mdc`
+
+## Canonical checklist
+
+`memory-bank/debug-ops-workflow.md`

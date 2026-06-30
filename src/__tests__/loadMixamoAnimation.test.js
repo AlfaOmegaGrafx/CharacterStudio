@@ -10,6 +10,8 @@ import {
   resolveRigBoneTrackName,
   resolveVrmBoneTrackName,
   resolveVrmStudioMotionTrackName,
+  prepareVrmForMixamoRetarget,
+  withNeutralVrmSceneRootForRetarget,
 } from '../library/loadMixamoAnimation.js';
 import { assertMixamoTracksUseNormalizedBones } from '../library/vrmMixamoPlaybackGuard.js';
 
@@ -261,5 +263,66 @@ describe('loadMixamoAnimation', () => {
     const retargeted = getMixamoAnimationForRig([clip], mixamoRoot, rigRoot);
     expect(retargeted).not.toBeNull();
     expect(retargeted.tracks.some((t) => t.name === 'bone_1.quaternion')).toBe(true);
+  });
+
+  it('prepareVrmForMixamoRetarget leaves passthrough bone names unchanged', () => {
+    const hipsNode = new THREE.Object3D();
+    hipsNode.name = 'Hips';
+    const vrm = {
+      scene: { userData: { vrmBindPassthrough: true }, updateMatrixWorld: () => {} },
+      humanoid: {
+        autoUpdateHumanBones: false,
+        humanBones: { hips: { node: hipsNode } },
+        getNormalizedBoneNode: () => hipsNode,
+        update: () => {},
+      },
+    };
+    expect(prepareVrmForMixamoRetarget(vrm)).toBe(true);
+    expect(hipsNode.name).toBe('Hips');
+  });
+
+  it('getMixamoAnimation retargets passthrough VRM with scene-root yaw applied', () => {
+    const hipsNode = new THREE.Object3D();
+    hipsNode.name = 'J_Bip_C_Hips';
+    const spineNode = new THREE.Object3D();
+    spineNode.name = 'J_Bip_C_Spine';
+    hipsNode.add(spineNode);
+    const scene = new THREE.Object3D();
+    scene.userData.vrmBindPassthrough = true;
+    scene.rotation.y = Math.PI;
+    scene.add(hipsNode);
+
+    const vrm = {
+      scene,
+      humanoid: {
+        autoUpdateHumanBones: true,
+        getNormalizedBoneNode: (name) => (name === 'hips' ? hipsNode : name === 'spine' ? spineNode : null),
+        getRawBoneNode: (name) => (name === 'hips' ? hipsNode : name === 'spine' ? spineNode : null),
+        update: () => {},
+      },
+      meta: { metaVersion: '0' },
+    };
+
+    const mixamoHips = new THREE.Object3D();
+    mixamoHips.name = 'mixamorigHips';
+    mixamoHips.position.y = 1;
+    const mixamoSpine = new THREE.Object3D();
+    mixamoSpine.name = 'mixamorigSpine';
+    mixamoHips.add(mixamoSpine);
+    const mixamoRoot = new THREE.Object3D();
+    mixamoRoot.add(mixamoHips);
+
+    const clip = new THREE.AnimationClip('mixamo.com', 1, [
+      new THREE.QuaternionKeyframeTrack(
+        'mixamorigSpine.quaternion',
+        [0, 1],
+        [0, 0, 0, 1, 0, 0, 0, 1],
+      ),
+    ]);
+
+    const retargeted = getMixamoAnimation([clip], mixamoRoot, vrm);
+    expect(retargeted).not.toBeNull();
+    expect(retargeted.tracks.some((t) => t.name === 'J_Bip_C_Spine.quaternion')).toBe(true);
+    expect(scene.rotation.y).toBeCloseTo(Math.PI, 4);
   });
 });

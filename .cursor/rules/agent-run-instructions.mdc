@@ -10,7 +10,8 @@ alwaysApply: true
 ## Always execute (never delegate)
 
 - Read logs, grep scheduler/API, inspect jobs, SSH between machines
-- Run scp sync after edits (`sync-changes-to-pc.sh`, `sync-to-dgx.ps1`, etc.)
+- **New/changed scripts or operator commands → `docs/scripts-cheatsheet.md` then scp sync** (see `.cursor/rules/new-scripts-ops-cheatsheet.mdc`) — same session, no reminder needed
+- Run scp sync after other DGX-owned edits (`sync-changes-to-pc.sh`, `sync-to-dgx.ps1`, etc.)
 - Restart 3DAIGC-API on DGX, prefetch models, submit test jobs, run `npm test` / anim smoke
 - Create/edit files, install deps, fix CI/lint locally
 - SessionMem / graphify / memory-bank updates when knowledge must persist
@@ -42,6 +43,10 @@ After edits: **auto-run scp sync** (not git). Say “copied to Surface/DGX” �
 ## Diagnostics before code changes
 
 Follow **`no-guess-use-data.mdc`** and **`remote-log-first.mdc`**: remote logs, smoke (`test:anim-smoke`), `?animSmoke=1`, SSH, git, docs — not guesses.
+
+## Terse or implicit failure signals
+
+User intent may be **one word**, **one sentence**, a **screenshot**, or **implied** (“where is X?”, “still?”, “you didn't sync”). Do **not** require exact phrases like `debug`. If the arc of the conversation is “something should work and doesn't” → run **`terse-debug-ops.mdc`** and **`memory-bank/debug-ops-workflow.md`**: infer → logs → fix → verify → sync — same session.
 
 ## Memory on session start (mandatory)
 

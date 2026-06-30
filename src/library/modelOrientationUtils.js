@@ -44,6 +44,9 @@ export function shouldPreserveExportedOrientation(options = {}, model, asset) {
   if (rigInfo?.rig_mode === 'template') return true;
   if (rigInfo?.rig_type === 'humanoid_template') return true;
   if (rigInfo?.generation_method === 'humanoid_vrm_template') return true;
+  if (rigInfo?.rig_mode === 'creature_template') return true;
+  if (rigInfo?.rig_type === 'creature_template') return true;
+  if (rigInfo?.generation_method === 'mesh2motion_creature_template') return true;
 
   if (options.fromAigc && isPreservedOrientationGltf(asset)) return true;
   if (options.fromAigc && options.autoRigMeta?.bone_count > 0 && isBlenderExportedGltf(asset)) {

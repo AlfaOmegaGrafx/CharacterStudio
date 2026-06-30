@@ -120,7 +120,7 @@ sync_is_dgx_owned_path() {
       sync-cheatsheet-to-desktop.sh|sync-cheatsheet-to-desktop.ps1|sync-lock-utils.sh)
         return 0
         ;;
-      verify-public-build-env.mjs|pre-commit-block-secrets.sh)
+      verify-public-build-env.mjs|pre-commit-block-secrets.sh|verify_krea2_text_to_3d_pipeline.sh)
         return 0
         ;;
       *)
@@ -130,6 +130,15 @@ sync_is_dgx_owned_path() {
   fi
 
   if [[ "$rel" =~ ^\.cursor/rules/surface-sync-reminder\.mdc || "$rel" =~ ^\.cursor/rules/dgx-sync-reminder\.mdc ]]; then
+    return 0
+  fi
+  if [[ "$rel" =~ ^\.cursor/rules/krea2-text-to-3d-pipeline-protected\.mdc || "$rel" =~ ^\.cursor/rules/image-preview-sizing-protected\.mdc ]]; then
+    return 0
+  fi
+  if [[ "$rel" =~ ^\.cursor/rules/new-scripts-ops-cheatsheet\.mdc || "$rel" =~ ^\.cursor/rules/terse-debug-ops\.mdc ]]; then
+    return 0
+  fi
+  if [[ "$include_docs" -eq 1 && "$rel" == "docs/scripts-cheatsheet.md" ]]; then
     return 0
   fi
 

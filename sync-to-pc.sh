@@ -140,9 +140,15 @@ for f in \
   scripts/xr-spark-hub-proxy.mjs \
   scripts/verify-dev-proxies.mjs \
   scripts/pre-commit-block-secrets.sh \
+  scripts/verify_krea2_text_to_3d_pipeline.sh \
+  docs/scripts-cheatsheet.md \
   .cursor/rules/surface-sync-reminder.mdc \
   .cursor/rules/dgx-sync-reminder.mdc \
-  .cursor/rules/spark-msf-xr-url-separation.mdc
+  .cursor/rules/spark-msf-xr-url-separation.mdc \
+  .cursor/rules/krea2-text-to-3d-pipeline-protected.mdc \
+  .cursor/rules/image-preview-sizing-protected.mdc \
+  .cursor/rules/new-scripts-ops-cheatsheet.mdc \
+  .cursor/rules/terse-debug-ops.mdc
 do
   push_file "$f"
 done

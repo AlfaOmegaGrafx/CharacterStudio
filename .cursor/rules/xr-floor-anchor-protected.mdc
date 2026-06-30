@@ -1,0 +1,29 @@
+---
+description: XR floor anchoring invariants — do not regress (Galaxy XR AR)
+globs: OpenNexus3DStudio/src/library/**/{sceneManager,worldSceneLoader,rigBoneUtils}*
+alwaysApply: false
+---
+
+# XR floor anchoring — protected (do not regress)
+
+**User-confirmed good state (2026-06-27).** Read `memory-bank/xr-floor-anchor-protected-state.md` before editing floor alignment or XR wrapper code.
+
+## Invariants
+
+| Area | Rule |
+|------|------|
+| Bounds layers | `computeXrFloorAlignmentY` uses **only** `playerRoot` / `worldRoot` / `propsRoot` |
+| Avatar feet | VRM/rigged avatars: `getViewportFloorAnchorBounds(..., { meshFeetOnly: true })` — not full-scene `setFromObject` |
+| XR wrap | `shouldSkipXrFloorWrap()` excludes grid, axes, skybox, helpers |
+| Logs | `[XR][floor]` with `boundsMinY`, `sources`, `referenceSpaceType` |
+
+## Forbidden without explicit user request
+
+- Computing floor Y from **all** `vrSceneWrapper` children (reintroduces +1 m lift).
+- Including `viewportGridHelper` / `viewportAxesHelper` in XR floor wrap.
+- Using armature-only or hips-only bounds for multi-skin VRM0 passthrough uploads.
+
+## Regression signal
+
+Good: `floorAlignmentY: ~0`, wrapped names without grid/axes.  
+Bad: `floorAlignmentY: 1`, 7 wrapped objects including helpers.

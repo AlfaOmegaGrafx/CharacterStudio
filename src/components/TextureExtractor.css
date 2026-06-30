@@ -1,4 +1,5 @@
 /* TextureExtractor Component Styles */
+@import './expandedImagePreview.css';
 
 .texture-extractor {
   padding: 0.5rem;
@@ -137,7 +138,9 @@
 .texture-preview {
   position: relative;
   width: 100%;
-  height: 500px;
+  height: var(--panel-image-preview-height);
+  max-height: var(--panel-image-preview-height);
+  min-height: var(--panel-image-preview-min-height);
   background: linear-gradient(135deg, #434343 0%, #000000 100%);
   display: flex;
   align-items: center;
@@ -247,15 +250,16 @@
 /* Texture Details Modal */
 .texture-details-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding: var(--expanded-image-modal-offset-top) 1rem 1rem;
+  overflow-y: auto;
+  box-sizing: border-box;
   z-index: 1000;
   animation: fadeIn 0.3s ease;
 }
@@ -264,11 +268,14 @@
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   border-radius: 16px;
   padding: 32px;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-width: min(92vw, 800px);
+  width: 100%;
+  max-height: none;
+  overflow-y: visible;
   position: relative;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .close-btn {
@@ -305,12 +312,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  min-height: var(--expand-modal-image-preview-min-height);
 }
 
 .texture-details-preview img {
   max-width: 100%;
-  max-height: 500px;
+  max-height: var(--expand-modal-image-preview-max-height);
   image-rendering: pixelated;
   border-radius: 8px;
 }

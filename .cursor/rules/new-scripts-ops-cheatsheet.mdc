@@ -1,0 +1,36 @@
+---
+description: Mandatory cheatsheet + Surface sync whenever scripts or operator commands change
+alwaysApply: true
+---
+
+# New scripts & operator commands (mandatory — same session)
+
+Whenever you **add, rename, or materially change** a script, npm script, Tailscale/serve/funnel command, or repeatable operator workflow on **DGX** (any repo: OpenNexus3DStudio, `3DAIGC-API`, `MSF_Map_Svc`, etc.):
+
+## Do this before you say the task is done
+
+1. **Document** in `docs/scripts-cheatsheet.md` — correct § section, table row: *Where · Folder · Command · notes* (defaults, args, how to close/revert).
+2. **Sync to Surface repo** (DGX agent):
+   ```bash
+   cd /home/sifr/OpenNexus3DStudio
+   bash scripts/sync-changes-to-pc.sh --retry-until-complete
+   ```
+   If incremental scp fails, **scp the changed files directly** — do not skip sync.
+3. **Sync Desktop mirror** when the cheatsheet changed — **automatic** if step 2 pushed `docs/scripts-cheatsheet.md`; otherwise run:
+   ```bash
+   bash scripts/sync-cheatsheet-to-desktop.sh
+   ```
+   Targets: `<DGX_DESKTOP_NOTES>\DGX Terminal Commands.{md,txt}` (+ `XR_VOICE_COMMANDS.md` when present).
+4. **Use `--include-src`** when DGX edited `src/`; **`--include-agent-context`** when memory-bank / `.brain` changed.
+
+## Never
+
+- Finish with only a chat explanation of a new command — cheatsheet + sync are part of the deliverable.
+- Wait for the user to ask “did you update the cheatsheet?” or “sync to Surface?”
+- Mark cheatsheet work done without Desktop mirror (`sync-cheatsheet-to-desktop.sh`) when `docs/scripts-cheatsheet.md` changed
+
+## Cross-repo note
+
+Scripts may live outside this repo (e.g. `/home/sifr/MSF_Map_Svc/scripts/`). **Cheatsheet still lives here** — OpenNexus `docs/scripts-cheatsheet.md` is the operator hub for the whole DGX↔Surface stack.
+
+See also: `.cursor/rules/dgx-sync-reminder.mdc`, `.cursor/rules/agent-run-instructions.mdc`.

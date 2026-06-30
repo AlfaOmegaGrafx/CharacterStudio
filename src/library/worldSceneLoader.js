@@ -2,7 +2,11 @@
  * Load World Packages into SceneManager layer roots (world / props / player).
  */
 import * as THREE from './three.js';
-import { getViewportFloorAnchorBounds } from './rigBoneUtils.js';
+import {
+  countModelBones,
+  getViewportFloorAnchorBounds,
+  modelHasSkinnedMesh,
+} from './rigBoneUtils.js';
 import {
   applySplatOrientationCorrection,
   disposeSplatMesh,
@@ -175,6 +179,50 @@ export function anchorObjectBottomToFloor(root) {
 
 const FLOOR_ANCHOR_LAYER_KEYS = ['playerRoot', 'worldRoot', 'propsRoot'];
 
+const XR_FLOOR_WRAP_SKIP_NAMES = new Set([
+  'viewportGridHelper',
+  'viewportAxesHelper',
+  'VRSkybox',
+  'VRSceneWrapper',
+  'ARSceneWrapper',
+  'XRLocomotionRig',
+]);
+
+/** @param {THREE.Object3D|null|undefined} object */
+export function shouldSkipXrFloorWrap(object) {
+  if (!object) return true;
+  if (object.isHelper) return true;
+  if (XR_FLOOR_WRAP_SKIP_NAMES.has(object.name)) return true;
+  return false;
+}
+
+/**
+ * Floor bounds for XR anchoring — mesh soles for rigged/VRM avatars, not armature tails.
+ * @param {THREE.Object3D|null|undefined} layerRoot
+ * @param {import('./sceneManager.js').SceneManager} sceneManager
+ * @returns {THREE.Box3}
+ */
+function getXrFloorAnchorBoundsForLayer(layerRoot, sceneManager) {
+  const empty = new THREE.Box3();
+  if (!layerRoot) return empty;
+
+  const model =
+    layerRoot === sceneManager.playerRoot ? sceneManager.currentModel : null;
+
+  if (
+    model &&
+    (model.userData?.vrm ||
+      model.userData?.vrmNormalized ||
+      modelHasSkinnedMesh(model) ||
+      countModelBones(model) > 0)
+  ) {
+    const feetBox = getViewportFloorAnchorBounds(model, { meshFeetOnly: true });
+    if (!feetBox.isEmpty()) return feetBox;
+  }
+
+  return getObjectFloorBounds(layerRoot);
+}
+
 /**
  * XR wrapper Y offset so the lowest scene content sits on reference-space floor (Y=0).
  * @param {import('./sceneManager.js').SceneManager} sceneManager
@@ -185,11 +233,14 @@ export function computeXrFloorAlignmentY(sceneManager) {
 
   const box = new THREE.Box3();
   let hasBounds = false;
+  /** @type {{ label: string, minY: number, maxY: number }[]} */
+  const sources = [];
 
-  const includeBounds = (object) => {
-    if (!object) return;
-    const bounds = getObjectFloorBounds(object);
+  const includeBounds = (object, label) => {
+    if (!object || shouldSkipXrFloorWrap(object)) return;
+    const bounds = getXrFloorAnchorBoundsForLayer(object, sceneManager);
     if (bounds.isEmpty()) return;
+    sources.push({ label, minY: bounds.min.y, maxY: bounds.max.y });
     if (!hasBounds) {
       box.copy(bounds);
       hasBounds = true;
@@ -198,45 +249,27 @@ export function computeXrFloorAlignmentY(sceneManager) {
     }
   };
 
-  const wrapper = sceneManager.vrSceneWrapper;
-  if (wrapper) {
-    wrapper.updateMatrixWorld(true);
-    for (const child of wrapper.children) {
-      if (child === sceneManager.xrLocomotionRig) {
-        for (const rigChild of child.children) {
-          includeBounds(rigChild);
-        }
-        continue;
-      }
-      if (
-        child.name === 'VRSkybox' ||
-        child.type === 'PerspectiveCamera' ||
-        child.type === 'OrthographicCamera' ||
-        child.isHelper
-      ) {
-        continue;
-      }
-      includeBounds(child);
-    }
+  for (const key of FLOOR_ANCHOR_LAYER_KEYS) {
+    includeBounds(sceneManager[key], key);
+  }
+
+  if (!hasBounds && sceneManager.currentModel) {
+    includeBounds(sceneManager.currentModel, 'currentModel');
   }
 
   if (!hasBounds) {
-    for (const key of FLOOR_ANCHOR_LAYER_KEYS) {
-      includeBounds(sceneManager[key]);
-    }
-    if (!hasBounds && sceneManager.currentModel) {
-      const avatarFloor = getViewportFloorAnchorBounds(sceneManager.currentModel);
-      if (!avatarFloor.isEmpty()) {
-        box.copy(avatarFloor);
-        hasBounds = true;
-      } else {
-        includeBounds(sceneManager.currentModel);
-      }
-    }
+    sceneManager._lastXrFloorDiagnostics = null;
+    return 0;
   }
 
-  if (!hasBounds) return 0;
-  return -box.min.y;
+  const floorAlignmentY = -box.min.y;
+  sceneManager._lastXrFloorDiagnostics = {
+    boundsMinY: box.min.y,
+    boundsMaxY: box.max.y,
+    floorAlignmentY,
+    sources,
+  };
+  return floorAlignmentY;
 }
 
 /** Viewport avatar height after processModel (≈2 m humanoid). */
