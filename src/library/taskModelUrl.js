@@ -258,6 +258,32 @@ export function getTaskResultModelUrl(result) {
 }
 
 /**
+ * Job thumbnail URL when the API generated one (may 404 — callers should fall back).
+ * @param {object|null|undefined} result
+ * @param {string|null|undefined} [jobId]
+ * @returns {string|null}
+ */
+export function getTaskResultThumbnailUrl(result, jobId) {
+  if (!result || typeof result !== 'object') {
+    if (typeof jobId === 'string' && jobId.length > 0) {
+      return `/api/v1/system/jobs/${jobId}/thumbnail`;
+    }
+    return null;
+  }
+  const fromResult =
+    pickUrlFromObject(result, ['thumbnail_url', 'thumbnail_path']) ||
+    (result.result && typeof result.result === 'object'
+      ? pickUrlFromObject(result.result, ['thumbnail_url', 'thumbnail_path'])
+      : null);
+  if (fromResult) return fromResult;
+  const id = jobId || result.job_id || result.jobId || result.result?.job_id;
+  if (typeof id === 'string' && id.length > 0) {
+    return `/api/v1/system/jobs/${id}/thumbnail`;
+  }
+  return null;
+}
+
+/**
  * Mesh/GLB download URL for viewport "Load Model" — never prefers splat paths.
  * @param {object|null|undefined} result
  * @returns {string|null}
@@ -511,11 +537,18 @@ export function resolveTaskModelUrl(rawUrl, apiEndpoint = '') {
 
   if (trimmed.startsWith('/')) {
     const base = (apiEndpoint || '').replace(/\/$/, '');
-    if (base.startsWith('/')) {
+    const alreadyProxied =
+      trimmed === DEV_DGX_PROXY_PREFIX ||
+      trimmed.startsWith(`${DEV_DGX_PROXY_PREFIX}/`);
+    const alreadyHasBase =
+      !!base &&
+      base.startsWith('/') &&
+      (trimmed === base || trimmed.startsWith(`${base}/`));
+    if (base.startsWith('/') && !alreadyHasBase && !alreadyProxied) {
       trimmed = `${base}${trimmed}`;
-    } else if (base) {
+    } else if (base && !base.startsWith('/') && !/^https?:\/\//i.test(trimmed)) {
       trimmed = `${base}${trimmed}`;
-    } else if (typeof window !== 'undefined' && window.location?.origin) {
+    } else if (!base && typeof window !== 'undefined' && window.location?.origin) {
       trimmed = `${window.location.origin}${trimmed}`;
     }
   } else if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith('blob:') && !trimmed.startsWith('data:')) {
@@ -574,10 +607,17 @@ export function enrichCompletedJobPayload(jobStatus, jobId = null, taskType = nu
     typeof taskType === 'string' ? taskType.replace(/-/g, '_') : null;
   const isWorldJob =
     normalizedTaskType === 'image_to_world' ||
+    normalizedTaskType === 'environment_scan' ||
     nested?.feature === 'image_to_world' ||
+    nested?.feature === 'environment_scan' ||
     jobStatus.feature === 'image_to_world' ||
+    jobStatus.feature === 'environment_scan' ||
     nested?.pipeline === 'image-to-world' ||
-    jobStatus.pipeline === 'image-to-world';
+    nested?.pipeline === 'environment-scan' ||
+    nested?.pipeline === 'lingbot_map_environment_scan' ||
+    jobStatus.pipeline === 'image-to-world' ||
+    jobStatus.pipeline === 'environment-scan' ||
+    jobStatus.pipeline === 'lingbot_map_environment_scan';
   const worldManifestUrl =
     jobStatus.world_manifest_url ||
     nested?.world_manifest_url ||
@@ -623,7 +663,10 @@ export function enrichCompletedJobPayload(jobStatus, jobId = null, taskType = nu
     world_base_url: worldBaseUrl,
     mesh_file_info: jobStatus.mesh_file_info || nested?.mesh_file_info || null,
     pipelineStage:
-      taskType === 'image-to-world' || nested?.feature === 'image_to_world'
+      taskType === 'image-to-world' ||
+      taskType === 'environment-scan' ||
+      nested?.feature === 'image_to_world' ||
+      nested?.feature === 'environment_scan'
         ? 'world_package'
         : jobStatus.pipelineStage,
     result: nested || jobStatus.result,

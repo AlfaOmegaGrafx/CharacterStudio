@@ -120,6 +120,9 @@ sync_is_dgx_owned_path() {
       sync-cheatsheet-to-desktop.sh|sync-cheatsheet-to-desktop.ps1|sync-lock-utils.sh)
         return 0
         ;;
+      sync-sessionmem-team.sh|sync-sessionmem-team.ps1|verify-agent-continuity.sh|verify-agent-continuity.ps1|verify-agent-continuity-hook.ps1)
+        return 0
+        ;;
       verify-public-build-env.mjs|pre-commit-block-secrets.sh|verify_krea2_text_to_3d_pipeline.sh)
         return 0
         ;;
@@ -129,6 +132,12 @@ sync_is_dgx_owned_path() {
     esac
   fi
 
+  if [[ "$rel" =~ ^\.agent/ || "$rel" == "CLAUDE.md" || "$rel" == "AGENTS.md" ]]; then
+    return 0
+  fi
+  if [[ "$rel" =~ ^\.cursor/hooks\.json$ || "$rel" =~ ^\.cursor/hooks/ ]]; then
+    return 0
+  fi
   if [[ "$rel" =~ ^\.cursor/rules/surface-sync-reminder\.mdc || "$rel" =~ ^\.cursor/rules/dgx-sync-reminder\.mdc ]]; then
     return 0
   fi
@@ -136,6 +145,9 @@ sync_is_dgx_owned_path() {
     return 0
   fi
   if [[ "$rel" =~ ^\.cursor/rules/new-scripts-ops-cheatsheet\.mdc || "$rel" =~ ^\.cursor/rules/terse-debug-ops\.mdc ]]; then
+    return 0
+  fi
+  if [[ "$rel" =~ ^\.cursor/rules/agent-continuity-startup\.mdc || "$rel" =~ ^\.cursor/rules/agent-run-instructions\.mdc ]]; then
     return 0
   fi
   if [[ "$include_docs" -eq 1 && "$rel" == "docs/scripts-cheatsheet.md" ]]; then

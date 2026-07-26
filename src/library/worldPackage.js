@@ -69,10 +69,16 @@ export function parseWorldPackage(value) {
     coordinate_system: manifest.coordinate_system === 'z-up' ? 'z-up' : 'y-up',
     spawn: normalizeSpawn(manifest.spawn),
     environment: {
-      type: env.type === 'gaussian_splat' ? 'gaussian_splat' : 'gaussian_splat',
+      type:
+        env.type === 'point_cloud' || env.type === 'points'
+          ? 'point_cloud'
+          : 'gaussian_splat',
       url: env.url,
       format: typeof env.format === 'string' ? env.format : inferFormatFromUrl(env.url),
-      renderer: env.renderer === 'spark' ? 'spark' : 'spark',
+      renderer:
+        env.renderer === 'points' || env.type === 'point_cloud' || env.type === 'points'
+          ? 'points'
+          : 'spark',
       transform: normalizeTransform(env.transform),
       collider_url:
         typeof env.collider_url === 'string'
@@ -359,9 +365,15 @@ export function getWorldManifestUrlFromTaskResult(result) {
     }
     if (
       nested?.feature === 'image_to_world' ||
+      nested?.feature === 'environment_scan' ||
       result.feature === 'image_to_world' ||
+      result.feature === 'environment_scan' ||
       nested?.pipeline === 'image-to-world' ||
-      result.pipeline === 'image-to-world'
+      nested?.pipeline === 'environment-scan' ||
+      nested?.pipeline === 'lingbot_map_environment_scan' ||
+      result.pipeline === 'image-to-world' ||
+      result.pipeline === 'environment-scan' ||
+      result.pipeline === 'lingbot_map_environment_scan'
     ) {
       return `/api/v1/system/jobs/${jobId}/download?asset=manifest`;
     }
@@ -418,7 +430,10 @@ export function isFullWorldPackageTaskResult(result) {
   if (!result || typeof result !== 'object') return false;
   if (getWorldManifestUrlFromTaskResult(result)) return true;
   if (result.feature === 'image_to_world') return true;
+  if (result.feature === 'environment_scan') return true;
   if (result.pipeline === 'image-to-world') return true;
+  if (result.pipeline === 'environment-scan') return true;
+  if (result.pipeline === 'lingbot_map_environment_scan') return true;
   if (result.pipelineStage === 'world_package') return true;
   return false;
 }

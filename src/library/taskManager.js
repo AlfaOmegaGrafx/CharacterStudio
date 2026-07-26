@@ -38,6 +38,7 @@ import {
   DEFAULT_HUMANOID_TEMPLATE_ID,
   normalizeHumanoidTemplateId,
   TEMPLATE_RIG_MODEL_ID,
+  APPEARANCE_COMPONENT_RIG_MODEL_ID,
 } from './avatarPipelineCatalog.js';
 import {
   CREATURE_TEMPLATE_RIG_MODEL_ID,
@@ -202,6 +203,7 @@ export class TaskManager {
       'avatar-from-image',
       'avatar-from-photo',
       'image-to-world',
+      'environment-scan',
       'text-to-image',
       'text-to-motion',
     ];
@@ -496,6 +498,7 @@ export class TaskManager {
           task.type === 'image-to-splat' ||
           task.type === 'avatar-from-image' ||
           task.type === 'image-to-world' ||
+          task.type === 'environment-scan' ||
           task.type === 'text-to-image' ||
           task.type === 'text-to-motion'
             ? { maxAttempts: 600, pollInterval: 3000 }
@@ -529,8 +532,10 @@ export class TaskManager {
           const modelUrl = isMotionTask || isImageTask ? null : getTaskResultModelUrl(completedResult);
           const isWorldTask =
             task.type === 'image-to-world' ||
+            task.type === 'environment-scan' ||
             completedResult.pipelineStage === 'world_package' ||
-            completedResult.feature === 'image_to_world';
+            completedResult.feature === 'image_to_world' ||
+            completedResult.feature === 'environment_scan';
           const taskRow = this.tasks.get(taskId);
           if (isMotionTask) {
             window.dispatchEvent(
@@ -750,6 +755,8 @@ export class TaskManager {
         return await this.executeAvatarFromImage(prompt, imageFile, options);
       case 'image-to-world':
         return await this.executeImageToWorld(prompt, imageFile, options);
+      case 'environment-scan':
+        return await this.executeEnvironmentScan(prompt, imageFile, options);
       case 'text-to-image':
         return await this.executeTextToImage(prompt, options);
       case 'text-to-motion':
@@ -1425,6 +1432,24 @@ export class TaskManager {
       }
     }
 
+    if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+      const slot =
+        options?.appearance_slot ||
+        options?.model_parameters?.appearance_slot ||
+        null;
+      if (slot) {
+        rigBody.appearance_slot = slot;
+      }
+      if (modelPreference !== APPEARANCE_COMPONENT_RIG_MODEL_ID) {
+        logger.warn('Appearance component rig requires appearance_component_auto_rig; overriding', {
+          requested: modelPreference,
+          using: APPEARANCE_COMPONENT_RIG_MODEL_ID,
+        });
+        rigBody.model_preference = APPEARANCE_COMPONENT_RIG_MODEL_ID;
+      }
+      rigBody.output_format = 'glb';
+    }
+
     if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
       rigBody.creature_template_id = normalizeCreatureTemplateId(
         options?.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID,
@@ -1530,6 +1555,100 @@ export class TaskManager {
       throw new Error('Image-to-world did not return a job_id');
     }
     return { job_id: data.job_id, status: 'queued', pipeline: 'image-to-world', ...data };
+  }
+
+  /**
+   * Galaxy XR / walk-video → LingBot-Map environment scan with optional 1:1 metric scale.
+   * Does not replace image-to-world (TripoSplat).
+   */
+  async executeEnvironmentScan(prompt, videoOrImageFile, options = {}) {
+    const endpoint = `${this.apiEndpoint}/api/v1/world-generation/environment-scan`;
+    let videoFileId = options?.video_file_id || null;
+    const imageFileIds = Array.isArray(options?.image_file_ids)
+      ? [...options.image_file_ids]
+      : [];
+
+    const isVideoFile = (file) => {
+      if (!file) return false;
+      const name = file.name || '';
+      return (
+        /\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(name) ||
+        String(file.type || '').startsWith('video/')
+      );
+    };
+
+    if (!videoFileId && videoOrImageFile && isVideoFile(videoOrImageFile)) {
+      const form = new FormData();
+      form.append('file', videoOrImageFile);
+      const up = await axios.post(`${this.apiEndpoint}/api/v1/file-upload/video`, form, {
+        headers: { ...get3daigcAuthHeaders() },
+        timeout: 600000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+      videoFileId = up.data?.file_id;
+      if (!videoFileId) throw new Error('Video upload did not return file_id');
+    }
+
+    if (!videoFileId && imageFileIds.length < 3) {
+      const frameFiles = [];
+      if (videoOrImageFile && !isVideoFile(videoOrImageFile)) {
+        frameFiles.push(videoOrImageFile);
+      }
+      if (Array.isArray(options?.reference_image_files)) {
+        for (const f of options.reference_image_files) {
+          if (f && !isVideoFile(f)) frameFiles.push(f);
+        }
+      }
+      for (const f of frameFiles) {
+        imageFileIds.push(await this.uploadImageFileForApi(f));
+      }
+    }
+
+    if (!videoFileId && imageFileIds.length < 3 && !options?.frame_dir) {
+      throw new Error(
+        'Environment scan needs a walk video or ≥3 frames (Galaxy XR outward cameras while walking)',
+      );
+    }
+
+    const metric = options?.metric_calibration || null;
+    const hasMetricHint =
+      metric &&
+      (metric.true_meters != null ||
+        metric.mode === 'player_height' ||
+        (Array.isArray(metric.point_a) && Array.isArray(metric.point_b)));
+    if (!hasMetricHint) {
+      logger.warn(
+        'environment-scan without metric_calibration — twin will not be 1:1 meters until calibrated',
+      );
+    }
+
+    const payload = withObjectNamePayload(
+      {
+        model_preference: options?.model_preference ?? 'lingbot_map_environment_scan',
+        world_id: options?.world_id,
+        world_name: options?.world_name || options?.object_name || prompt || 'Environment Scan',
+        // Up to 600; API uses windowed CPU-resident LingBot for long walks on GB10.
+        max_frames: options?.max_frames ?? 600,
+        frame_stride: options?.frame_stride ?? 1,
+        refine_to_3dgs: Boolean(options?.refine_to_3dgs),
+        ...(videoFileId ? { video_file_id: videoFileId } : {}),
+        ...(imageFileIds.length >= 3 ? { image_file_ids: imageFileIds } : {}),
+        ...(options?.frame_dir ? { frame_dir: options.frame_dir } : {}),
+        ...(metric ? { metric_calibration: metric } : {}),
+      },
+      options,
+    );
+
+    const response = await axios.post(endpoint, payload, {
+      headers: { 'Content-Type': 'application/json', ...get3daigcAuthHeaders() },
+      timeout: 300000,
+    });
+    const data = response.data;
+    if (!data?.job_id) {
+      throw new Error('Environment scan did not return a job_id');
+    }
+    return { job_id: data.job_id, status: 'queued', pipeline: 'environment-scan', ...data };
   }
 
   /**
@@ -2132,8 +2251,10 @@ export class TaskManager {
     const modelUrl = getTaskResultModelUrl(completedResult);
     const isWorldTask =
       task?.type === 'image-to-world' ||
+      task?.type === 'environment-scan' ||
       completedResult?.pipelineStage === 'world_package' ||
-      completedResult?.feature === 'image_to_world';
+      completedResult?.feature === 'image_to_world' ||
+      completedResult?.feature === 'environment_scan';
     if (!modelUrl && !isWorldTask) return;
     window.dispatchEvent(
       new CustomEvent('taskCompleted', {
@@ -2402,7 +2523,8 @@ export class TaskManager {
         task.type === 'image-to-3d' ||
         task.type === 'image-to-splat' ||
         task.type === 'avatar-from-image' ||
-        task.type === 'image-to-world'
+        task.type === 'image-to-world' ||
+        task.type === 'environment-scan'
           ? { maxAttempts: 600, pollInterval: 3000 }
           : {};
       const finalResult = await this.pollJobStatus(

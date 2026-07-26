@@ -10,8 +10,13 @@
  * - Avatar from image: TRELLIS.2 mesh → UniRig template.vrm
  * - World props / mesh paint: TRELLIS.2
  */
-import { AUTO_RIG_MODES, TEMPLATE_RIG_MODEL_ID } from './avatarPipelineCatalog.js';
+import {
+  AUTO_RIG_MODES,
+  TEMPLATE_RIG_MODEL_ID,
+  APPEARANCE_COMPONENT_RIG_MODEL_ID,
+} from './avatarPipelineCatalog.js';
 import { CREATURE_TEMPLATE_RIG_MODEL_ID } from './creaturePipelineCatalog.js';
+import { inferAppearanceSlot, isAppearanceClothingName } from './appearanceClothing.js';
 
 /** @type {{ value: string, label: string, feature: string }[]} */
 export const ALL_MODELS = [
@@ -34,9 +39,19 @@ export const ALL_MODELS = [
     label: 'Image to World (TripoSplat env + TRELLIS.2 props)',
     feature: 'image_to_world',
   },
+  {
+    value: 'lingbot_map_environment_scan',
+    label: 'Environment scan (LingBot-Map walk → 1:1 twin)',
+    feature: 'environment_scan',
+  },
   { value: 'p3sam_mesh_segmentation', label: 'P3-SAM Mesh Segmentation', feature: 'mesh_segmentation' },
   { value: 'skintokens_auto_rig', label: 'SkinTokens Auto Rig (recommended — full rig + GLB)', feature: 'auto_rig' },
   { value: 'unirig_auto_rig', label: 'UniRig Auto Rig (template VRM / FBX skeleton)', feature: 'auto_rig' },
+  {
+    value: 'appearance_component_auto_rig',
+    label: 'Appearance Clothing Fit (VRM slot — Joggers, Shirt, Boots…)',
+    feature: 'auto_rig',
+  },
   {
     value: 'creature_template_auto_rig',
     label: 'Creature Template Rig (Mesh2Motion fox / quadruped → GLB)',
@@ -85,6 +100,12 @@ export const PREFERRED_PIPELINES = {
     envModel: 'opennexus_image_to_world',
     propMeshModel: 'trellis2_image_to_textured_mesh',
   },
+  physicalReplicaScan: {
+    label: 'Physical replica (Galaxy XR walk)',
+    steps: ['Outward-camera walk video', 'LingBot-Map', '1:1 metric calibrate'],
+    taskType: 'environment-scan',
+    envModel: 'lingbot_map_environment_scan',
+  },
   textToImageTo3d: {
     label: 'Concept art → 3D (recommended)',
     steps: ['Krea 2 Turbo text→image', 'TRELLIS.2 image→3D'],
@@ -109,6 +130,7 @@ export const TASK_TYPE_TO_FEATURE = {
   'mesh-editing-image': 'image_mesh_editing',
   'image-to-splat': 'image_to_splat',
   'image-to-world': 'image_to_world',
+  'environment-scan': 'environment_scan',
   'text-to-image': 'text_to_image',
   'text-to-motion': 'text_to_motion',
   'avatar-from-image': null,
@@ -155,6 +177,8 @@ export function getModelLabel(modelId) {
 /** Default rig job output_format per backend (3DAIGC-API contract). */
 export function getDefaultAutoRigOutputFormat(modelPreference, rigMode) {
   if (rigMode === AUTO_RIG_MODES.TEMPLATE) return 'glb';
+  if (rigMode === AUTO_RIG_MODES.TEMPLATE_WRAP) return 'glb';
+  if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) return 'glb';
   if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) return 'glb';
   if (modelPreference === 'skintokens_auto_rig') return 'glb';
   if (modelPreference === CREATURE_TEMPLATE_RIG_MODEL_ID) return 'glb';
@@ -170,6 +194,7 @@ const DEFAULT_MODEL_BY_FEATURE = {
   image_mesh_painting: 'trellis2_image_mesh_painting',
   image_to_splat: 'triposplat_image_to_splat',
   image_to_world: 'opennexus_image_to_world',
+  environment_scan: 'lingbot_map_environment_scan',
   mesh_segmentation: 'p3sam_mesh_segmentation',
   auto_rig: 'skintokens_auto_rig',
   mesh_retopology: 'instant_meshes_retopology',
@@ -191,10 +216,13 @@ export function getDefaultModelForFeature(featureOrTaskType) {
   return models[0]?.value ?? '';
 }
 
-/** Default auto-rig model for a rig mode (template → UniRig; else SkinTokens). */
+/** Default auto-rig model for a rig mode (template → UniRig; creature → fox; else SkinTokens). */
 export function getDefaultAutoRigModel(rigMode) {
-  if (rigMode === AUTO_RIG_MODES.TEMPLATE) {
+  if (rigMode === AUTO_RIG_MODES.TEMPLATE || rigMode === AUTO_RIG_MODES.TEMPLATE_WRAP) {
     return TEMPLATE_RIG_MODEL_ID;
+  }
+  if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+    return APPEARANCE_COMPONENT_RIG_MODEL_ID;
   }
   if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
     return CREATURE_TEMPLATE_RIG_MODEL_ID;
@@ -203,31 +231,167 @@ export function getDefaultAutoRigModel(rigMode) {
 }
 
 /**
- * Resolve auto-rig model for UI/API — enforces UniRig for template mode.
+ * Infer preferred auto-rig pipeline from object name / hints.
+ * Used so the UI can pre-select creature vs SkinTokens vs UniRig vs clothing fit.
+ *
+ * @param {{ objectName?: string, meshFileName?: string }} [hints]
+ * @returns {'creature' | 'template' | 'skintokens' | 'appearance'}
+ */
+export function inferAutoRigPipelineKind(hints = {}) {
+  const text = `${hints.objectName || ''} ${hints.meshFileName || ''}`.toLowerCase();
+  if (isAppearanceClothingName(hints)) {
+    return 'appearance';
+  }
+  if (
+    /\b(fox|quadruped|creature|wolf|dog|cat|horse|deer|animal|mesh2motion)\b/.test(text)
+  ) {
+    return 'creature';
+  }
+  if (
+    /\b(template\s*vrm|humanoid\s*template|vrm\s*template|unirig)\b/.test(text)
+  ) {
+    return 'template';
+  }
+  // Biped / character default (Eagle Knight, humans, etc.)
+  return 'skintokens';
+}
+
+/**
+ * Apply inferred pipeline → { modelPreference, rigMode, appearance_slot? }.
+ * @param {'creature' | 'template' | 'skintokens' | 'appearance'} kind
+ * @param {{ objectName?: string }} [hints]
+ */
+export function autoRigSelectionForPipelineKind(kind, hints = {}) {
+  if (kind === 'creature') {
+    return {
+      modelPreference: CREATURE_TEMPLATE_RIG_MODEL_ID,
+      rigMode: AUTO_RIG_MODES.CREATURE_TEMPLATE,
+    };
+  }
+  if (kind === 'template') {
+    return {
+      modelPreference: TEMPLATE_RIG_MODEL_ID,
+      rigMode: AUTO_RIG_MODES.TEMPLATE,
+    };
+  }
+  if (kind === 'appearance') {
+    return {
+      modelPreference: APPEARANCE_COMPONENT_RIG_MODEL_ID,
+      rigMode: AUTO_RIG_MODES.APPEARANCE_COMPONENT,
+      appearance_slot: inferAppearanceSlot(hints) || 'Legs',
+    };
+  }
+  return {
+    modelPreference: 'skintokens_auto_rig',
+    rigMode: AUTO_RIG_MODES.FULL,
+  };
+}
+
+/**
+ * Pipelines to show on a completed mesh task's Rig panel (filtered by name/type).
+ * @param {{ options?: object, name?: string, type?: string }} task
+ * @returns {Array<'skintokens' | 'creature' | 'template' | 'appearance'>}
+ */
+export function recommendedRigPipelinesForTask(task) {
+  const name = `${task?.options?.object_name || ''} ${task?.name || ''}`;
+  const kind = inferAutoRigPipelineKind({ objectName: name });
+  if (kind === 'appearance') return ['appearance'];
+  if (kind === 'creature') return ['creature'];
+  if (kind === 'template') return ['template'];
+  if (/\b(human|person|avatar|mannequin)\b/i.test(name)) {
+    return ['skintokens', 'template'];
+  }
+  return ['skintokens'];
+}
+
+/**
+ * When the user picks a model in the dropdown, sync a compatible rig_mode.
+ * @param {string} modelId
+ * @param {string} [currentRigMode]
+ */
+export function implyRigModeFromAutoRigModel(modelId, currentRigMode) {
+  if (modelId === CREATURE_TEMPLATE_RIG_MODEL_ID) {
+    return AUTO_RIG_MODES.CREATURE_TEMPLATE;
+  }
+  if (modelId === TEMPLATE_RIG_MODEL_ID) {
+    if (
+      currentRigMode === AUTO_RIG_MODES.TEMPLATE ||
+      currentRigMode === AUTO_RIG_MODES.TEMPLATE_WRAP ||
+      currentRigMode === AUTO_RIG_MODES.SKELETON ||
+      currentRigMode === AUTO_RIG_MODES.SKIN ||
+      currentRigMode === AUTO_RIG_MODES.FULL
+    ) {
+      // Prefer template when switching onto UniRig from creature; keep UniRig modes otherwise.
+      if (currentRigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
+        return AUTO_RIG_MODES.TEMPLATE;
+      }
+      return currentRigMode;
+    }
+    return AUTO_RIG_MODES.TEMPLATE;
+  }
+  if (modelId === 'skintokens_auto_rig') {
+    if (
+      currentRigMode === AUTO_RIG_MODES.SKELETON ||
+      currentRigMode === AUTO_RIG_MODES.SKIN ||
+      currentRigMode === AUTO_RIG_MODES.FULL
+    ) {
+      return currentRigMode;
+    }
+    return AUTO_RIG_MODES.FULL;
+  }
+  return currentRigMode || AUTO_RIG_MODES.FULL;
+}
+
+/**
+ * Resolve auto-rig model for UI/API.
+ * - template / template_wrap → UniRig only
+ * - creature_template → creature_template_auto_rig only
+ * - skeleton / skin / full → SkinTokens or UniRig (user choice sticks)
+ *
  * @param {string} [rigMode]
  * @param {string} [selectedModel]
  */
 export function resolveAutoRigModelForTask(rigMode, selectedModel) {
-  if (rigMode === AUTO_RIG_MODES.TEMPLATE) {
+  if (rigMode === AUTO_RIG_MODES.TEMPLATE || rigMode === AUTO_RIG_MODES.TEMPLATE_WRAP) {
     return TEMPLATE_RIG_MODEL_ID;
+  }
+  if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+    return APPEARANCE_COMPONENT_RIG_MODEL_ID;
   }
   if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
     return CREATURE_TEMPLATE_RIG_MODEL_ID;
   }
   const autoRigModels = ALL_MODELS.filter((m) => m.feature === 'auto_rig');
   if (selectedModel && autoRigModels.some((m) => m.value === selectedModel)) {
-    if (selectedModel === TEMPLATE_RIG_MODEL_ID && rigMode !== AUTO_RIG_MODES.TEMPLATE) {
-      return getDefaultAutoRigModel(rigMode);
-    }
-    if (
-      selectedModel === CREATURE_TEMPLATE_RIG_MODEL_ID &&
-      rigMode !== AUTO_RIG_MODES.CREATURE_TEMPLATE
-    ) {
+    // Creature backend only accepts creature_template mode — don't leave it selected here.
+    if (selectedModel === CREATURE_TEMPLATE_RIG_MODEL_ID) {
       return getDefaultAutoRigModel(rigMode);
     }
     return selectedModel;
   }
   return getDefaultAutoRigModel(rigMode);
+}
+
+/**
+ * Models shown for a given auto-rig mode (hides incompatible backends).
+ * @param {string} [rigMode]
+ */
+export function getAutoRigModelsForRigMode(rigMode) {
+  const all = ALL_MODELS.filter((m) => m.feature === 'auto_rig');
+  if (rigMode === AUTO_RIG_MODES.TEMPLATE || rigMode === AUTO_RIG_MODES.TEMPLATE_WRAP) {
+    return all.filter((m) => m.value === TEMPLATE_RIG_MODEL_ID);
+  }
+  if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+    return all.filter((m) => m.value === APPEARANCE_COMPONENT_RIG_MODEL_ID);
+  }
+  if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
+    return all.filter((m) => m.value === CREATURE_TEMPLATE_RIG_MODEL_ID);
+  }
+  // skeleton / skin / full: SkinTokens + UniRig (not creature)
+  return all.filter(
+    (m) =>
+      m.value === 'skintokens_auto_rig' || m.value === TEMPLATE_RIG_MODEL_ID,
+  );
 }
 
 /** Default rig mode per task type. */

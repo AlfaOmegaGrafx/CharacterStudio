@@ -23,6 +23,21 @@ import {
   XR_EXPRESSION_TRACKING_FEATURE
 } from './xrExpressionTrackingDriver.js';
 import {
+  applyExpressionWeightRecordToCreature,
+  shouldUseCreatureFaceRetarget,
+} from './creatureFaceRetarget.js';
+import {
+  buildViewportLightingExtras,
+  clampViewportExposure,
+  clampViewportLightIntensity,
+  DEFAULT_VIEWPORT_EXPOSURE,
+  DEFAULT_VIEWPORT_LIGHT_INTENSITY,
+  normalizeViewportLightingState,
+  uiToEffectiveExposure,
+  uiToEffectiveLightIntensity,
+} from './viewportLighting.js';
+import { countModelRenderStats } from './viewportModelStats.js';
+import {
   getLastNativeFaceSource,
   getNativeFaceWeightsIfFresh,
   getNativeFaceWeightsMaxAgeMs,
@@ -53,6 +68,10 @@ import {
   loadWorldPackage as loadWorldPackageIntoScene,
 } from './worldSceneLoader.js';
 import { createSceneManagerXrInteraction } from './sceneManagerXrInteraction.js';
+import {
+  XR_HAND_TRACKING_FEATURE,
+  isXrInputVisualObject,
+} from './sceneManagerXrControllerVisuals.js';
 import { ensureXrLocomotionRig } from './sceneManagerXrLocomotion.js';
 import { createDepthVisualizationMaterial, createViewNormalMaterial, createUVMaterial } from './diagnosticMaterials.js';
 import {
@@ -185,6 +204,14 @@ export class SceneManager {
     
     // GLB Exporter
     this.glbExporter = new GLBExporter();
+
+    /** Viewport light slider UI (0–2, default 1). Effective intensity = UI × 2. */
+    this.lightIntensity = DEFAULT_VIEWPORT_LIGHT_INTENSITY;
+    /** Active lighting preset name (soft/studio/…). */
+    this.lightingPreset = 'soft';
+    /** Tone-mapping exposure (renderer.toneMappingExposure). */
+    this.exposure = 1.0;
+    this.toneMappingName = 'ACESFilmic';
     
     // VRM Loader and Exporter
     this.vrmLoader = new VRMLoader();
@@ -320,6 +347,40 @@ export class SceneManager {
    */
   setXRExpressionVRMProvider(fn) {
     this.xrExpressionVRMProvider = typeof fn === 'function' ? fn : null;
+  }
+
+  /**
+   * Drive VRM morphs when present; otherwise creature/SkinTokens bone retarget.
+   * @param {Record<string, number>|null|undefined} record
+   * @param {{ lerpFactor?: number, skipNeutralPreprocess?: boolean, frame?: XRFrame|null }} [options]
+   */
+  applyFaceExpressionWeights(record, options = {}) {
+    const vrms =
+      typeof this.xrExpressionVRMProvider === 'function'
+        ? this.xrExpressionVRMProvider().filter(Boolean)
+        : this.currentVRM
+          ? [this.currentVRM]
+          : [];
+    const vrmsWithExpr = vrms.filter((v) => v?.expressionManager);
+    if (vrmsWithExpr.length) {
+      if (record && Object.keys(record).length > 0) {
+        applyExpressionWeightRecordToVRMS(vrmsWithExpr, record, options);
+      } else if (options.frame) {
+        applyXRFrameExpressionsToVRMS(vrmsWithExpr, options.frame, options);
+      }
+      return { mode: 'vrm', count: vrmsWithExpr.length };
+    }
+
+    const roots = [];
+    if (this.currentModel && shouldUseCreatureFaceRetarget(this.currentModel)) {
+      roots.push(this.currentModel);
+    }
+    for (const root of roots) {
+      if (record && Object.keys(record).length > 0) {
+        applyExpressionWeightRecordToCreature(root, record, options);
+      }
+    }
+    return { mode: roots.length ? 'creature' : 'none', count: roots.length };
   }
 
   /** Trait avatar meshes + file import (for skeleton / render modes). */
@@ -1469,9 +1530,11 @@ export class SceneManager {
       this.controls.maxPolarAngle = Math.PI;
       this.controls.target.set(0, 1, 0); // Look at human height
 
-      // Setup lighting (soft preset is the app default)
+      // Setup lighting (soft preset is the app default; intensity starts at 2.0)
       this.lights = { ambient: [], directional: [], point: [], hemisphere: [] };
       this.setLighting('soft');
+      this.setLightIntensity(this.lightIntensity ?? DEFAULT_VIEWPORT_LIGHT_INTENSITY);
+      this.setExposure(this.exposure ?? DEFAULT_VIEWPORT_EXPOSURE);
 
       // Setup sky background before first frame (no dark → bright flash)
       await this.setupHDREnvironment();
@@ -2997,9 +3060,11 @@ export class SceneManager {
   forceRendererUpdate() {
     if (!this.renderer) return;
 
-    // Force renderer to update
-    this.renderer.info.autoReset = false;
-    this.renderer.info.reset();
+    // Keep Three.js per-frame info.reset behavior (do not leave autoReset=false).
+    if (this.renderer.info) {
+      this.renderer.info.autoReset = true;
+      this.renderer.info.reset();
+    }
     
     // Force material updates
     if (this.currentModel) {
@@ -3015,6 +3080,14 @@ export class SceneManager {
     
     // Force render
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Triangles / draw calls for the loaded viewport model only (not whole scene).
+   * @returns {{ triangles: number, drawCalls: number, meshes: number }}
+   */
+  getViewportModelStats() {
+    return countModelRenderStats(this.currentModel);
   }
 
   /**
@@ -4919,6 +4992,7 @@ export class SceneManager {
     if (!this.scene) return;
     
     console.log(`💡 Setting lighting preset: ${preset}`);
+    this.lightingPreset = preset || 'soft';
     
     // Remove existing lights
     if (Array.isArray(this.scene.children)) {
@@ -4949,25 +5023,37 @@ export class SceneManager {
       default:
         this._createSoftLighting();
     }
+
+    // Re-apply current intensity so preset swaps keep the Light slider value
+    if (this.lightIntensity != null) {
+      this.setLightIntensity(this.lightIntensity);
+    }
   }
 
   /**
-   * Set light intensity
-   * @param {number} intensity - Light intensity (0-2)
+   * Set light intensity from the UI slider (0–2).
+   * Applied Three.js intensity is UI × 2 (so 1.0 → 2.0, 2.0 → 4.0).
+   * @param {number} intensity - UI light intensity (0–2)
    */
   setLightIntensity(intensity) {
     if (!this.scene) return;
+
+    const ui = clampViewportLightIntensity(intensity);
+    this.lightIntensity = ui;
+    const effective = uiToEffectiveLightIntensity(ui);
     
-    console.log(`💡 Setting light intensity: ${intensity}`);
+    console.log(`💡 Setting light intensity UI ${ui} → effective ${effective}`);
     
     this.scene.traverse((child) => {
       if (child.isLight) {
         if (child.isAmbientLight) {
-          child.intensity = intensity * 0.3;
+          child.intensity = effective * 0.3;
         } else if (child.isDirectionalLight) {
-          child.intensity = intensity;
+          child.intensity = effective;
         } else if (child.isPointLight) {
-          child.intensity = intensity * 2;
+          child.intensity = effective * 2;
+        } else if (child.isHemisphereLight) {
+          child.intensity = effective * 0.4;
         }
       }
     });
@@ -5104,16 +5190,20 @@ export class SceneManager {
   }
 
   /**
-   * Set tone mapping algorithm
-   * @param {string} mapping - Tone mapping algorithm (ACES, Reinhard, Linear, Filmic)
+   * Set tone mapping algorithm (and optional exposure).
+   * @param {string} mapping - Tone mapping algorithm (ACES, Reinhard, Linear, Filmic, ACESFilmic, …)
+   * @param {number} [exposure]
    */
-  setToneMapping(mapping) {
+  setToneMapping(mapping, exposure) {
     if (!this.renderer) return;
     
     console.log(`🎨 Setting tone mapping: ${mapping}`);
+    this.toneMappingName = mapping || 'ACESFilmic';
     
     switch (mapping) {
       case 'ACES':
+      case 'ACESFilmic':
+      case 'Filmic':
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         break;
       case 'Reinhard':
@@ -5122,24 +5212,43 @@ export class SceneManager {
       case 'Linear':
         this.renderer.toneMapping = THREE.LinearToneMapping;
         break;
-      case 'Filmic':
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      case 'Cineon':
+        this.renderer.toneMapping = THREE.CineonToneMapping;
         break;
       default:
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     }
+
+    if (exposure != null && Number.isFinite(Number(exposure))) {
+      this.setExposure(exposure);
+    }
   }
 
   /**
-   * Set exposure value
-   * @param {number} exposure - Exposure value (0-3)
+   * Set exposure from the UI slider (0–2).
+   * Applied toneMappingExposure is UI × 2 (so 1.0 → 2.0, 2.0 → 4.0).
+   * @param {number} exposure - UI exposure (0–2)
    */
   setExposure(exposure) {
     if (!this.renderer) return;
     
-    console.log(`📸 Setting exposure: ${exposure}`);
-    
-    this.renderer.toneMappingExposure = exposure;
+    const ui = clampViewportExposure(exposure);
+    this.exposure = ui;
+    const effective = uiToEffectiveExposure(ui);
+    console.log(`📸 Setting exposure UI ${ui} → effective ${effective}`);
+    this.renderer.toneMappingExposure = effective;
+  }
+
+  /**
+   * Current viewport lighting/exposure for export + MSF transfer (effective values).
+   */
+  getViewportLightingState() {
+    return normalizeViewportLightingState({
+      lightIntensityUi: this.lightIntensity,
+      exposureUi: this.exposure ?? DEFAULT_VIEWPORT_EXPOSURE,
+      toneMapping: this.toneMappingName,
+      lightingPreset: this.lightingPreset,
+    });
   }
 
   /**
@@ -5994,25 +6103,6 @@ export class SceneManager {
   }
 
   /**
-   * Set renderer tone mapping and exposure
-   * @param {string} toneMapping - Tone mapping type ('ACESFilmic', 'Reinhard', 'Cineon', 'Linear')
-   * @param {number} exposure - Exposure value
-   */
-  setToneMapping(toneMapping, exposure = 1.0) {
-    if (!this.renderer) return;
-    
-    const toneMappingTypes = {
-      'ACESFilmic': THREE.ACESFilmicToneMapping,
-      'Reinhard': THREE.ReinhardToneMapping,
-      'Cineon': THREE.CineonToneMapping,
-      'Linear': THREE.LinearToneMapping
-    };
-    
-    this.renderer.toneMapping = toneMappingTypes[toneMapping] || THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = exposure;
-  }
-
-  /**
    * Setup resize handler
    */
   setupResizeHandler() {
@@ -6143,12 +6233,19 @@ export class SceneManager {
       filename = 'opennexus3dstudio_export.glb',
       forOpenNexus3DStudio = true,
       animationClips,
+      metadata: userMetadata = {},
       ...exportOptions
     } = options;
 
+    const viewLighting = this.getViewportLightingState();
     const glbOpts = {
       filename,
       animationClips,
+      viewLighting,
+      metadata: {
+        ...buildViewportLightingExtras(viewLighting),
+        ...userMetadata,
+      },
       ...exportOptions,
     };
 
@@ -6246,10 +6343,8 @@ export class SceneManager {
             ? [this.currentVRM]
             : [];
       const nativeRecFlat = getNativeFaceWeightsIfFresh();
-      if (vrmsFlat.length) {
-        if (nativeRecFlat && Object.keys(nativeRecFlat).length > 0) {
-          applyExpressionWeightRecordToVRMS(vrmsFlat, nativeRecFlat);
-        }
+      if (nativeRecFlat && Object.keys(nativeRecFlat).length > 0) {
+        this.applyFaceExpressionWeights(nativeRecFlat);
       }
       this._maybeLogNativeFaceRemoteDiag(vrmsFlat, nativeRecFlat);
 
@@ -6338,6 +6433,7 @@ export class SceneManager {
       requiredFeatures: ['bounded-floor'],
       optionalFeatures: [
         'local-floor', 'local', 'viewer',
+        XR_HAND_TRACKING_FEATURE,
         XR_EXPRESSION_TRACKING_FEATURE,
       ],
     });
@@ -6832,7 +6928,8 @@ export class SceneManager {
                   child.name !== 'VRSkybox' &&
                   child.name !== 'VRSceneWrapper' &&
                   child.name !== 'ARSceneWrapper' &&
-                  !child.isHelper) {
+                  !child.isHelper &&
+                  !isXrInputVisualObject(child)) {
                 this.vrSceneWrapper.add(child);
               }
             });
@@ -6971,7 +7068,8 @@ export class SceneManager {
                     child.name !== 'VRSkybox' &&
                     child.name !== 'VRSceneWrapper' &&
                     child.name !== 'ARSceneWrapper' &&
-                    !child.isHelper) {
+                    !child.isHelper &&
+                    !isXrInputVisualObject(child)) {
                   this.vrSceneWrapper.add(child);
                 }
               });
@@ -7117,16 +7215,14 @@ export class SceneManager {
                     ? [this.currentVRM]
                     : [];
               let nativeRecXr = null;
-              if (vrms.length) {
-                nativeRecXr = getNativeFaceWeightsIfFresh(
-                  getNativeFaceWeightsMaxAgeMs(true),
-                  true,
-                );
-                if (nativeRecXr && Object.keys(nativeRecXr).length > 0) {
-                  applyExpressionWeightRecordToVRMS(vrms, nativeRecXr);
-                } else {
-                  applyXRFrameExpressionsToVRMS(vrms, xrTf);
-                }
+              nativeRecXr = getNativeFaceWeightsIfFresh(
+                getNativeFaceWeightsMaxAgeMs(true),
+                true,
+              );
+              if (nativeRecXr && Object.keys(nativeRecXr).length > 0) {
+                this.applyFaceExpressionWeights(nativeRecXr);
+              } else {
+                this.applyFaceExpressionWeights(null, { frame: xrTf });
               }
               this._maybeLogNativeFaceRemoteDiag(vrms, nativeRecXr);
             }
@@ -7291,6 +7387,9 @@ export class SceneManager {
 
       // Call original setSession - this initializes Three.js XR
       // The reference space type is already set above, so Three.js will use it
+      // Prepare controller/hand model listeners BEFORE connect events fire.
+      ensureXrLocomotionRig(this);
+      this._ensureXrInteraction().controllerVisuals.prepare(this.renderer);
       await unlockFaceRecordingAudioPlayback();
       const result = await originalSetSession(session);
       await unlockFaceRecordingAudioPlayback();
@@ -7327,6 +7426,7 @@ export class SceneManager {
         requiredFeatures: ['bounded-floor'],
         optionalFeatures: [
           'local-floor', 'local', 'viewer',
+          XR_HAND_TRACKING_FEATURE,
         ],
       });
       console.log('✅ VRButton.createButton succeeded');
@@ -7400,6 +7500,7 @@ export class SceneManager {
               'local-floor',
               'local',
               'viewer',
+              XR_HAND_TRACKING_FEATURE,
               XR_EXPRESSION_TRACKING_FEATURE,
             ],
           });

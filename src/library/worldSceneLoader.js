@@ -12,6 +12,11 @@ import {
   disposeSplatMesh,
   loadSplatMesh,
 } from './sparkSplatManager.js';
+import {
+  disposePointCloud,
+  isAsciiPointCloudPlyHeader,
+  loadPointCloudPly,
+} from './pointCloudPlyLoader.js';
 import { resolveWorldPackageUrls } from './worldPackage.js';
 
 /**
@@ -43,7 +48,11 @@ export function ensureSceneRoots(sceneManager) {
 export function clearWorld(sceneManager) {
   ensureSceneRoots(sceneManager);
   if (sceneManager.worldEnvironmentSplat) {
-    disposeSplatMesh(sceneManager.worldEnvironmentSplat);
+    if (sceneManager.worldEnvironmentSplat.userData?.isPointCloud) {
+      disposePointCloud(sceneManager.worldEnvironmentSplat);
+    } else {
+      disposeSplatMesh(sceneManager.worldEnvironmentSplat);
+    }
     sceneManager.worldRoot.remove(sceneManager.worldEnvironmentSplat);
     sceneManager.worldEnvironmentSplat = null;
   }
@@ -128,7 +137,21 @@ export function applyWorldTransform(object, transform) {
     object.rotation.y = transform.rotation_y;
   }
   const scale = transform.scale ?? 1;
-  object.scale.setScalar(scale);
+  if (Array.isArray(scale) && scale.length >= 3) {
+    object.scale.set(
+      Number(scale[0]) || 1,
+      Number(scale[1]) || 1,
+      Number(scale[2]) || 1,
+    );
+  } else if (scale && typeof scale === 'object') {
+    object.scale.set(
+      Number(scale.x ?? scale.sx ?? 1) || 1,
+      Number(scale.y ?? scale.sy ?? 1) || 1,
+      Number(scale.z ?? scale.sz ?? 1) || 1,
+    );
+  } else {
+    object.scale.setScalar(Number(scale) || 1);
+  }
 }
 
 /**
@@ -503,46 +526,44 @@ export async function loadWorldColliderMesh(sceneManager, glbUrl, options = {}) 
  * @param {string} url
  * @param {object} [options]
  */
-export async function loadWorldEnvironmentSplat(sceneManager, url, options = {}) {
+export async function loadWorldEnvironmentPointCloud(sceneManager, url, options = {}) {
   ensureSceneRoots(sceneManager);
   if (sceneManager.worldEnvironmentSplat) {
-    disposeSplatMesh(sceneManager.worldEnvironmentSplat);
+    if (sceneManager.worldEnvironmentSplat.userData?.isPointCloud) {
+      disposePointCloud(sceneManager.worldEnvironmentSplat);
+    } else {
+      disposeSplatMesh(sceneManager.worldEnvironmentSplat);
+    }
     sceneManager.worldRoot.remove(sceneManager.worldEnvironmentSplat);
     sceneManager.worldEnvironmentSplat = null;
   }
-  const splatLoadOpts = { fromAigc: options.fromAigc !== false };
-  if (options.orientationMode != null) {
-    splatLoadOpts.orientationMode = options.orientationMode;
-  }
-  const splat = await loadSplatMesh(sceneManager, url, splatLoadOpts);
-  splat.userData.isWorldEnvironment = true;
-  applyWorldTransform(splat, options.transform);
-  if (
-    options.coordinateSystem === 'z-up' &&
-    options.fromAigc !== false &&
-    isIdentityWorldRotation(options.transform?.rotation)
-  ) {
-    applySplatOrientationCorrection(splat, 'z-up-to-y-up');
-  }
-  anchorObjectBottomToFloor(splat);
-  sceneManager.worldRoot.add(splat);
-  sceneManager.worldEnvironmentSplat = splat;
+
+  const points = await loadPointCloudPly(url, { pointSize: options.pointSize ?? 0.025 });
+  applyWorldTransform(points, options.transform);
+  anchorObjectBottomToFloor(points);
+  sceneManager.worldRoot.add(points);
+  sceneManager.worldEnvironmentSplat = points;
 
   const worldId =
     options.worldId ||
     sceneManager.activeWorldId ||
-    `splat:${String(url).split('/').pop()?.split('?')[0] || 'env'}`;
+    `points:${String(url).split('/').pop()?.split('?')[0] || 'env'}`;
   sceneManager.activeWorldId = worldId;
   sceneManager.activeWorldManifest =
     options.manifest ||
     sceneManager.activeWorldManifest || {
       id: worldId,
       name: options.worldName || worldId,
-      environment: { url, type: 'gaussian_splat' },
+      environment: { url, type: 'point_cloud' },
       props: [],
     };
 
-  sceneManager.emit?.('worldEnvironmentLoaded', { url, splat, manifest: sceneManager.activeWorldManifest });
+  sceneManager.emit?.('worldEnvironmentLoaded', {
+    url,
+    splat: points,
+    pointCloud: points,
+    manifest: sceneManager.activeWorldManifest,
+  });
   if (options.emitWorldLoaded !== false) {
     sceneManager.emit?.('worldLoaded', {
       manifest: sceneManager.activeWorldManifest,
@@ -550,7 +571,139 @@ export async function loadWorldEnvironmentSplat(sceneManager, url, options = {})
       environmentOnly: true,
     });
   }
-  return splat;
+  return points;
+}
+
+/**
+ * @param {import('./worldPackage.js').WorldPackage|Record<string, unknown>|null|undefined} manifest
+ */
+export function shouldLoadEnvironmentAsPointCloud(manifest) {
+  const env = manifest?.environment || {};
+  const meta = manifest?.metadata || {};
+  const type = String(env.type || '').toLowerCase();
+  const renderer = String(env.renderer || '').toLowerCase();
+  const source = String(meta.source_geometry || '').toLowerCase();
+  const pipeline = String(meta.pipeline || '').toLowerCase();
+  const phase = String(meta.gaussian_phase || '').toLowerCase();
+
+  // Explicit Gaussian / Spark worlds must NEVER go through the XYZRGB point parser
+  // (wrong stride → points scattered across the scene).
+  if (
+    type === 'gaussian_splat' ||
+    type === 'gaussian' ||
+    renderer === 'spark' ||
+    source.includes('gaussian') ||
+    phase.startsWith('a_') ||
+    phase.startsWith('b_')
+  ) {
+    return false;
+  }
+
+  if (type === 'point_cloud' || type === 'points' || renderer === 'points') return true;
+  if (source === 'point_cloud') return true;
+  // Legacy LingBot packages defaulted to point clouds before Phase A 3DGS.
+  if (pipeline.includes('lingbot')) return true;
+  return false;
+}
+
+/**
+ * @param {import('./sceneManager.js').SceneManager} sceneManager
+ * @param {string} url
+ * @param {object} [options]
+ */
+export async function loadWorldEnvironmentSplat(sceneManager, url, options = {}) {
+  ensureSceneRoots(sceneManager);
+  if (sceneManager.worldEnvironmentSplat) {
+    if (sceneManager.worldEnvironmentSplat.userData?.isPointCloud) {
+      disposePointCloud(sceneManager.worldEnvironmentSplat);
+    } else {
+      disposeSplatMesh(sceneManager.worldEnvironmentSplat);
+    }
+    sceneManager.worldRoot.remove(sceneManager.worldEnvironmentSplat);
+    sceneManager.worldEnvironmentSplat = null;
+  }
+
+  // LingBot / explicit point-cloud worlds — skip Spark (ASCII XYZRGB is not a splat).
+  if (shouldLoadEnvironmentAsPointCloud(options.manifest) || options.forcePointCloud) {
+    return loadWorldEnvironmentPointCloud(sceneManager, url, options);
+  }
+
+  try {
+    // LingBot / gravity-aligned env-scan Gaussians are already Y-up — do not apply
+    // TripoSplat's 180° X flip (that was scrambling Phase A world packages).
+    const manifest = options.manifest || sceneManager.activeWorldManifest;
+    const pipeline = String(manifest?.metadata?.pipeline || '').toLowerCase();
+    const source = String(manifest?.metadata?.source_geometry || '').toLowerCase();
+    const isLingbotGaussian =
+      pipeline.includes('lingbot') || source.includes('gaussian_from_point');
+    const splatLoadOpts = {
+      fromAigc: options.fromAigc !== false,
+      orientationMode:
+        options.orientationMode ?? (isLingbotGaussian ? 'none' : undefined),
+    };
+    if (options.orientationMode != null) {
+      splatLoadOpts.orientationMode = options.orientationMode;
+    }
+    const splat = await loadSplatMesh(sceneManager, url, splatLoadOpts);
+    splat.userData.isWorldEnvironment = true;
+    applyWorldTransform(splat, options.transform);
+    if (
+      options.coordinateSystem === 'z-up' &&
+      options.fromAigc !== false &&
+      isIdentityWorldRotation(options.transform?.rotation)
+    ) {
+      applySplatOrientationCorrection(splat, 'z-up-to-y-up');
+    }
+    anchorObjectBottomToFloor(splat);
+    sceneManager.worldRoot.add(splat);
+    sceneManager.worldEnvironmentSplat = splat;
+
+    const worldId =
+      options.worldId ||
+      sceneManager.activeWorldId ||
+      `splat:${String(url).split('/').pop()?.split('?')[0] || 'env'}`;
+    sceneManager.activeWorldId = worldId;
+    sceneManager.activeWorldManifest =
+      options.manifest ||
+      sceneManager.activeWorldManifest || {
+        id: worldId,
+        name: options.worldName || worldId,
+        environment: { url, type: 'gaussian_splat' },
+        props: [],
+      };
+
+    sceneManager.emit?.('worldEnvironmentLoaded', {
+      url,
+      splat,
+      manifest: sceneManager.activeWorldManifest,
+    });
+    if (options.emitWorldLoaded !== false) {
+      sceneManager.emit?.('worldLoaded', {
+        manifest: sceneManager.activeWorldManifest,
+        propCount: sceneManager.worldPropMeshes?.length ?? 0,
+        environmentOnly: true,
+      });
+    }
+    return splat;
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    if (/ascii|unsupported ply format/i.test(msg)) {
+      console.warn('[World] Splat loader rejected PLY; falling back to point cloud:', msg);
+      return loadWorldEnvironmentPointCloud(sceneManager, url, options);
+    }
+    // Peek header for ASCII point clouds when Spark throws something else
+    try {
+      const headRes = await fetch(url, { headers: { Range: 'bytes=0-1023' } });
+      const head = await headRes.text();
+      if (isAsciiPointCloudPlyHeader(head)) {
+        console.warn('[World] Detected ASCII point-cloud PLY; loading as Points');
+        return loadWorldEnvironmentPointCloud(sceneManager, url, options);
+      }
+    } catch {
+      /* ignore probe errors */
+    }
+    throw err;
+  }
 }
 
 /**
@@ -568,7 +721,11 @@ export async function loadWorldPackage(sceneManager, manifest, manifestUrl, opti
   clearWorld(sceneManager);
 
   sceneManager.emit?.('worldLoadingStart', { manifest: resolved });
-  console.log('[World] Loading environment splat:', resolved.environment.url);
+  const asPoints = shouldLoadEnvironmentAsPointCloud(resolved);
+  console.log(
+    asPoints ? '[World] Loading environment point cloud:' : '[World] Loading environment splat:',
+    resolved.environment.url,
+  );
 
   await loadWorldEnvironmentSplat(sceneManager, resolved.environment.url, {
     fromAigc: true,
@@ -577,6 +734,7 @@ export async function loadWorldPackage(sceneManager, manifest, manifestUrl, opti
     worldId: resolved.id,
     worldName: resolved.name,
     manifest: resolved,
+    forcePointCloud: asPoints,
     emitWorldLoaded: false,
   });
 

@@ -100,3 +100,14 @@ scripts/lock-it-in.sh
 .cursor/rules/no-guess-use-data.mdc
 .cursor/rules/security-local-only.mdc
 .cursor/rules/remote-log-first.mdc
+
+# --- LingBot env-scan orientation + Phase A 3DGS ---
+src/library/worldSceneLoader.js
+src/library/pointCloudPlyLoader.js
+src/library/worldPackage.js
+src/library/taskManager.js
+src/components/TaskManager.jsx
+src/__tests__/pointCloudWorldLoad.test.js
+src/__tests__/worldSceneLoader.test.js
+memory-bank/lingbot-env-scan-orientation-protected-state.md
+.cursor/rules/lingbot-env-scan-orientation-protected.mdc

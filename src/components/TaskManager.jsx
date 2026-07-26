@@ -6,17 +6,31 @@ import { ensureAbsoluteUrl, get3daigcAuthHeaders } from '../library/taskManager'
 import {
   ALL_MODELS,
   TASK_TYPE_TO_FEATURE,
+  autoRigSelectionForPipelineKind,
+  getAutoRigModelsForRigMode,
   getDefaultAutoRigOutputFormat,
   getDefaultModelForFeature,
   getDefaultRigModeForTaskType,
   getModelLabel,
   getModelsForTaskType as getCatalogModelsForTaskType,
   getPropMeshModelsForWorld,
+  implyRigModeFromAutoRigModel,
+  inferAutoRigPipelineKind,
   PREFERRED_PIPELINES,
+  recommendedRigPipelinesForTask,
   resolveAutoRigModelForTask,
   resolveMeshModelForAvatarFromImage,
   resolveSplatModelForPhotos,
 } from '../library/aiModelsCatalog.js';
+import {
+  AUTO_RIG_MODES,
+  DEFAULT_HUMANOID_TEMPLATE_ID,
+  TEMPLATE_RIG_MODEL_ID,
+} from '../library/avatarPipelineCatalog.js';
+import {
+  CREATURE_TEMPLATE_OPTIONS,
+  DEFAULT_CREATURE_TEMPLATE_ID,
+} from '../library/creaturePipelineCatalog.js';
 import {
   getTaskResultModelUrl,
   getTaskResultMeshUrl,
@@ -41,6 +55,7 @@ import { canPublishTaskToSpatialFabric, getSyncSceneAssemblerUrl, preopenSpatial
 import {
   normalizeObjectName,
   objectNameFromFilename,
+  resolveCarriedObjectName,
   slugifyObjectName,
 } from '../library/objectNameUtils.js';
 import {
@@ -48,14 +63,6 @@ import {
   canBrowseAiTaskCatalog,
   OPEN_TASK_CATALOG_EVENT,
 } from '../library/runtimeUi.js';
-import {
-  AUTO_RIG_MODES,
-  DEFAULT_HUMANOID_TEMPLATE_ID,
-  TEMPLATE_RIG_MODEL_ID,
-} from '../library/avatarPipelineCatalog.js';
-import {
-  DEFAULT_CREATURE_TEMPLATE_ID,
-} from '../library/creaturePipelineCatalog.js';
 import {
   MAX_TOTAL_IMAGES,
   multiImageUploadHint,
@@ -65,11 +72,13 @@ import {
 import TaskAdvancedOptions from './TaskAdvancedOptions.jsx';
 import TextToImagePromptOptions from './TextToImagePromptOptions.jsx';
 import ImagePanelPreview from './ImagePanelPreview.jsx';
+import TaskMeshPreview from './TaskMeshPreview.jsx';
 import {
   buildTextToImagePrompt,
   DEFAULT_TEXT_TO_IMAGE_PROMPT_OPTIONS,
 } from '../library/textToImagePromptOptions.js';
 import './TaskManager.css';
+import './TaskMeshPreview.css';
 
 export { ALL_MODELS, TASK_TYPE_TO_FEATURE };
 
@@ -144,6 +153,10 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskType, setNewTaskType] = useState('text-to-3d');
   const [newObjectName, setNewObjectName] = useState('');
+  /** True after the user edits the object-name field; blocks overwrite from filename/chain. */
+  const objectNameTouchedRef = useRef(false);
+  /** Last name used on a started job — restored for the next task so chaining does not retype. */
+  const lastObjectNameRef = useRef('');
   const [newTaskPrompt, setNewTaskPrompt] = useState('');
   const [newTaskImage, setNewTaskImage] = useState(null);
   const [newTaskImages, setNewTaskImages] = useState([]);
@@ -161,6 +174,10 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     prop_regions_json: '',
     world_name: '',
     prop_mesh_model_preference: 'trellis2_image_to_textured_mesh',
+    metric_mode: 'auto_bbox',
+    metric_true_meters: '',
+    metric_recon_length: '',
+    refine_to_3dgs: false,
     image_width: 1024,
     image_height: 1024,
     text_to_image_prompt_options: { ...DEFAULT_TEXT_TO_IMAGE_PROMPT_OPTIONS },
@@ -180,6 +197,9 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const [isSyncingTasks, setIsSyncingTasks] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   const [publishingJobId, setPublishingJobId] = useState(null);
+  /** Completed mesh task id with expanded Rig panel (filtered pipelines). */
+  const [rigPanelTaskId, setRigPanelTaskId] = useState(null);
+  const [rigPanelPipeline, setRigPanelPipeline] = useState('skintokens');
   const [availableModels, setAvailableModels] = useState(ALL_MODELS);
   const [isExpanded, setIsExpanded] = useState(false);
   const cardHeaderRef = useRef(null);
@@ -199,6 +219,37 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const [objectNamePlaceholder, setObjectNamePlaceholder] = useState(
     'e.g. Dragon Knight, Desk Lamp, Childhood Bedroom',
   );
+
+  /**
+   * Fill object name from upload/chain unless the user has typed their own.
+   * @param {string|null|undefined} suggested
+   * @param {{ force?: boolean }} [opts]
+   */
+  const applyCarriedObjectName = (suggested, opts = {}) => {
+    const name = normalizeObjectName(suggested);
+    if (!name) return;
+    setObjectNamePlaceholder(name);
+    if (opts.force || !objectNameTouchedRef.current || !normalizeObjectName(newObjectName)) {
+      setNewObjectName(name);
+      if (opts.force) objectNameTouchedRef.current = false;
+    }
+  };
+
+  const openNewTaskForm = (taskType, carriedName) => {
+    if (taskType) setNewTaskType(taskType);
+    setShowNewTask(true);
+    setIsExpanded(true);
+    const carried =
+      normalizeObjectName(carriedName) ||
+      normalizeObjectName(newObjectName) ||
+      lastObjectNameRef.current;
+    if (carried && (!objectNameTouchedRef.current || !normalizeObjectName(newObjectName))) {
+      setNewObjectName(carried);
+      setObjectNamePlaceholder(carried);
+      objectNameTouchedRef.current = false;
+    }
+  };
+
   const avatarSdkReady = Boolean(
     import.meta.env.VITE_AVATARSDK_CLIENT_ID && import.meta.env.VITE_AVATARSDK_CLIENT_SECRET
   );
@@ -227,9 +278,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   useEffect(() => {
     const onBrowse = (event) => {
       const taskType = event?.detail?.taskType || 'text-to-3d';
-      setNewTaskType(taskType);
-      setShowNewTask(true);
-      setIsExpanded(true);
+      openNewTaskForm(taskType, lastObjectNameRef.current);
       if (cardHeaderRef.current) {
         setTimeout(() => {
           cardHeaderRef.current?.scrollIntoView({
@@ -255,7 +304,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     if (fileInputRef.current) return;
     const needsImageInput =
       showNewTask &&
-      ['image-to-3d', 'image-to-raw-mesh', 'image-to-splat', 'image-to-world', 'avatar-from-image', 'mesh-painting', 'mesh-editing-image', 'avatar-from-photo'].includes(newTaskType);
+      ['image-to-3d', 'image-to-raw-mesh', 'image-to-splat', 'image-to-world', 'environment-scan', 'avatar-from-image', 'mesh-painting', 'mesh-editing-image', 'avatar-from-photo'].includes(newTaskType);
     if (needsImageInput) {
       console.warn('TaskManager: file input ref missing while task needs image upload');
     }
@@ -315,6 +364,15 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
         world_name: prev.world_name ?? '',
       }));
       if (defaultModel) setNewTaskModel(defaultModel);
+    } else if (newTaskType === 'environment-scan') {
+      setTaskOptions((prev) => ({
+        ...prev,
+        world_name: prev.world_name ?? '',
+        metric_mode: prev.metric_mode || 'auto_bbox',
+        metric_true_meters: prev.metric_true_meters ?? '',
+        metric_recon_length: prev.metric_recon_length ?? '',
+      }));
+      if (defaultModel) setNewTaskModel(defaultModel);
     } else if (newTaskType === 'text-to-image') {
       setTaskOptions((prev) => ({
         ...prev,
@@ -338,7 +396,96 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       ...prev,
       output_format: getDefaultAutoRigOutputFormat(resolved, rigMode),
     }));
-  }, [newTaskType, taskOptions.rig_mode, newTaskModel]);
+  }, [newTaskType, taskOptions.rig_mode]);
+
+  /** When user picks a backend model, sync compatible rig_mode (fixes UniRig/creature snap-back). */
+  const handleAutoRigModelChange = (modelId) => {
+    const rigMode = taskOptions.rig_mode ?? getDefaultRigModeForTaskType('auto-rigging');
+    const nextMode = implyRigModeFromAutoRigModel(modelId, rigMode);
+    setNewTaskModel(modelId);
+    setTaskOptions((prev) => ({
+      ...prev,
+      rig_mode: nextMode,
+      output_format: getDefaultAutoRigOutputFormat(modelId, nextMode),
+      humanoid_template_id:
+        nextMode === AUTO_RIG_MODES.TEMPLATE || nextMode === AUTO_RIG_MODES.TEMPLATE_WRAP
+          ? prev.humanoid_template_id ?? DEFAULT_HUMANOID_TEMPLATE_ID
+          : prev.humanoid_template_id,
+      creature_template_id:
+        nextMode === AUTO_RIG_MODES.CREATURE_TEMPLATE
+          ? prev.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID
+          : prev.creature_template_id,
+    }));
+  };
+
+  /** Visible pipeline picker — sets model + rig_mode together. */
+  const handleAutoRigPipelineKind = (kind) => {
+    const { modelPreference, rigMode, appearance_slot } = autoRigSelectionForPipelineKind(
+      kind,
+      { objectName: newObjectName },
+    );
+    setNewTaskModel(modelPreference);
+    setTaskOptions((prev) => ({
+      ...prev,
+      rig_mode: rigMode,
+      output_format: getDefaultAutoRigOutputFormat(modelPreference, rigMode),
+      appearance_slot:
+        rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT
+          ? appearance_slot || prev.appearance_slot || 'Legs'
+          : prev.appearance_slot,
+      humanoid_template_id:
+        rigMode === AUTO_RIG_MODES.TEMPLATE
+          ? prev.humanoid_template_id ?? DEFAULT_HUMANOID_TEMPLATE_ID
+          : prev.humanoid_template_id,
+      creature_template_id:
+        rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE
+          ? prev.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID
+          : prev.creature_template_id,
+    }));
+  };
+
+  /** Auto-pick creature/UniRig/SkinTokens/Appearance clothing from object name. */
+  useEffect(() => {
+    if (newTaskType !== 'auto-rigging') return;
+    const kind = inferAutoRigPipelineKind({ objectName: newObjectName });
+    const { modelPreference, rigMode, appearance_slot } = autoRigSelectionForPipelineKind(
+      kind,
+      { objectName: newObjectName },
+    );
+    const currentMode = taskOptions.rig_mode;
+    // Only auto-switch when name strongly implies creature/template/clothing, or when still on defaults.
+    const onDefaultSkinTokens =
+      (!currentMode || currentMode === AUTO_RIG_MODES.FULL) &&
+      (newTaskModel === 'skintokens_auto_rig' || !newTaskModel);
+    if (
+      kind === 'creature' ||
+      kind === 'template' ||
+      kind === 'appearance' ||
+      onDefaultSkinTokens
+    ) {
+      if (newTaskModel !== modelPreference || currentMode !== rigMode) {
+        if (kind === 'skintokens' && !onDefaultSkinTokens) return;
+        setNewTaskModel(modelPreference);
+        setTaskOptions((prev) => ({
+          ...prev,
+          rig_mode: rigMode,
+          output_format: getDefaultAutoRigOutputFormat(modelPreference, rigMode),
+          appearance_slot:
+            rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT
+              ? appearance_slot || prev.appearance_slot || 'Legs'
+              : prev.appearance_slot,
+          creature_template_id:
+            rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE
+              ? prev.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID
+              : prev.creature_template_id,
+          humanoid_template_id:
+            rigMode === AUTO_RIG_MODES.TEMPLATE
+              ? prev.humanoid_template_id ?? DEFAULT_HUMANOID_TEMPLATE_ID
+              : prev.humanoid_template_id,
+        }));
+      }
+    }
+  }, [newTaskType, newObjectName]);
   
   // Optionally fetch models from API on mount
   useEffect(() => {
@@ -403,7 +550,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     if (
       taskType === 'avatar-from-photo' ||
       taskType === 'avatar-from-image' ||
-      taskType === 'image-to-world'
+      taskType === 'image-to-world' ||
+      taskType === 'environment-scan'
     ) {
       return false;
     }
@@ -468,6 +616,40 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       alert('⚠️ Image to World requires a reference photo.');
       return;
     }
+    if (newTaskType === 'environment-scan') {
+      const isVideo =
+        newTaskImage &&
+        (/\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(newTaskImage.name || '') ||
+          String(newTaskImage.type || '').startsWith('video/'));
+      const frameCount =
+        (supportsMultiImageInput(newTaskType) && newTaskImages.length > 0
+          ? newTaskImages.length
+          : newTaskImage
+            ? 1
+            : 0);
+      if (!isVideo && frameCount < 3) {
+        alert(
+          '⚠️ Environment scan needs a walk video or ≥3 ordered frames (Galaxy XR outward cameras while walking).',
+        );
+        return;
+      }
+      const trueMeters = Number(taskOptions.metric_true_meters);
+      if (!Number.isFinite(trueMeters) || trueMeters <= 0) {
+        alert(
+          '⚠️ Enter a real-world length in meters for 1:1 scale (e.g. measured door width, or approximate room diagonal for auto bbox).',
+        );
+        return;
+      }
+      if (
+        taskOptions.metric_mode === 'reference_length' &&
+        !(Number(taskOptions.metric_recon_length) > 0)
+      ) {
+        alert(
+          '⚠️ reference_length mode needs recon_length (same feature measured in reconstruction units), or switch mode to auto_bbox.',
+        );
+        return;
+      }
+    }
     if (newTaskType === 'avatar-from-image' && !newTaskImage) {
       alert('⚠️ Avatar from Image requires a photo (mesh + template.vrm rig).');
       return;
@@ -506,6 +688,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
           ? 'Generate avatar from photo (mesh + template VRM rig)'
           : newTaskType === 'image-to-world'
             ? objectName
+            : newTaskType === 'environment-scan'
+              ? objectName
             : `${newTaskType.replace('-', ' ')} on current model`);
 
     if (newTaskType === 'text-to-image') {
@@ -581,6 +765,26 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
         options.prop_regions = [];
       }
     }
+    if (newTaskType === 'environment-scan') {
+      options.model_preference = newTaskModel || 'lingbot_map_environment_scan';
+      options.world_name = objectName;
+      options.refine_to_3dgs = Boolean(taskOptions.refine_to_3dgs);
+      const trueMeters = Number(taskOptions.metric_true_meters);
+      const mode = taskOptions.metric_mode || 'auto_bbox';
+      const metric = {
+        mode,
+        true_meters: trueMeters,
+      };
+      const recon = Number(taskOptions.metric_recon_length);
+      if (Number.isFinite(recon) && recon > 0) {
+        if (mode === 'player_height') {
+          metric.recon_height = recon;
+        } else {
+          metric.recon_length = recon;
+        }
+      }
+      options.metric_calibration = metric;
+    }
     if (newTaskType === 'text-to-image') {
       options.width = Number(taskOptions.image_width) || 1024;
       options.height = Number(taskOptions.image_height) || 1024;
@@ -611,9 +815,12 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       });
     }
     onAITask(newTaskType, prompt, imageFile, options);
-    setNewObjectName('');
+    lastObjectNameRef.current = objectName;
+    objectNameTouchedRef.current = false;
+    // Keep object name for the next step (e.g. Image to 3D → Auto Rigging).
+    setNewObjectName(objectName);
+    setObjectNamePlaceholder(objectName);
     setNewTaskPrompt('');
-    setObjectNamePlaceholder('e.g. Dragon Knight, Desk Lamp, Childhood Bedroom');
     setNewTaskImage(null);
     setNewTaskImages([]);
     setPrimaryImageIndex(0);
@@ -642,10 +849,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       setPrimaryImageIndex(0);
       setNewTaskImage(selected[0]);
     }
-    const suggested = objectNameFromFilename(selected[0].name);
-    if (suggested) {
-      setObjectNamePlaceholder(suggested);
-    }
+    applyCarriedObjectName(objectNameFromFilename(selected[0].name));
   };
 
   const handleSetPrimaryImage = (index) => {
@@ -783,16 +987,15 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
       const ext = getTaskResultFileExtension(loadPayload) || 'png';
-      const baseName = slugifyObjectName(
-        task.options?.object_name || task.name,
-        'generated-image',
-      );
+      const carried = resolveCarriedObjectName(task) || lastObjectNameRef.current;
+      const baseName = slugifyObjectName(carried, 'generated-image');
       const file = new File([blob], `${baseName}.${ext}`, {
         type: blob.type || (ext === 'webp' ? 'image/webp' : 'image/png'),
       });
       setNewTaskType('image-to-3d');
       setNewTaskPrompt(task.prompt || '');
-      setNewObjectName(task.options?.object_name || task.name || '');
+      applyCarriedObjectName(carried, { force: true });
+      if (carried) lastObjectNameRef.current = carried;
       setNewTaskModel(getDefaultModelForFeature('image-to-3d'));
       setNewTaskImage(file);
       setNewTaskImages([]);
@@ -806,6 +1009,61 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     } catch (error) {
       alert(error?.message || 'Failed to fetch generated image for Image to 3D.');
     }
+  };
+
+  /** Prefill Auto Rigging from a completed mesh task (name carries; load mesh into viewport). */
+  const handleUseMeshForAutoRigging = (task, event, pipelineKind) => {
+    event?.stopPropagation?.();
+    event?.preventDefault?.();
+    const carried = resolveCarriedObjectName(task) || lastObjectNameRef.current;
+    if (carried) lastObjectNameRef.current = carried;
+    const pipelines = recommendedRigPipelinesForTask(task);
+    const kind =
+      pipelineKind && pipelines.includes(pipelineKind) ? pipelineKind : pipelines[0] || 'skintokens';
+    const { modelPreference, rigMode, appearance_slot } = autoRigSelectionForPipelineKind(
+      kind,
+      { objectName: carried },
+    );
+    dispatchLoadTask(task, 'useForAutoRig');
+    openNewTaskForm('auto-rigging', carried);
+    applyCarriedObjectName(carried, { force: true });
+    setNewTaskModel(modelPreference);
+    setTaskOptions((prev) => ({
+      ...prev,
+      rig_mode: rigMode,
+      output_format: getDefaultAutoRigOutputFormat(modelPreference, rigMode),
+      appearance_slot:
+        rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT
+          ? appearance_slot || 'Legs'
+          : prev.appearance_slot,
+      humanoid_template_id:
+        rigMode === AUTO_RIG_MODES.TEMPLATE
+          ? prev.humanoid_template_id ?? DEFAULT_HUMANOID_TEMPLATE_ID
+          : prev.humanoid_template_id,
+      creature_template_id:
+        rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE
+          ? prev.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID
+          : prev.creature_template_id,
+    }));
+    setRigPanelTaskId(null);
+    window.setTimeout(() => {
+      newTaskFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      objectNameInputRef.current?.focus();
+    }, 0);
+  };
+
+  const openCompletedRigPanel = (task, event) => {
+    event?.stopPropagation?.();
+    event?.preventDefault?.();
+    const pipelines = recommendedRigPipelinesForTask(task);
+    setRigPanelTaskId(task.id);
+    setRigPanelPipeline(pipelines[0] || 'skintokens');
+  };
+
+  const PIPELINE_LABELS = {
+    skintokens: 'SkinTokens — biped / character',
+    creature: 'Creature template — fox / quadruped',
+    template: 'UniRig template VRM — humanoid',
   };
 
   const handleDownloadTaskImage = async (task, event) => {
@@ -1211,25 +1469,52 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                         </button>
                       </>
                     ) : (
-                      modelUrl && (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            dispatchLoadTask(task, 'loadModelButton');
-                          }}
-                          style={{
-                            marginLeft: '0.5rem',
-                            padding: '0.1rem 0.3rem',
-                            fontSize: '0.6rem',
-                            background: '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Load Model
-                        </button>
+                      (meshUrl || modelUrl || taskJobId) && (
+                        <>
+                          {(meshUrl || modelUrl) && (
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                dispatchLoadTask(task, 'loadModelButton');
+                              }}
+                              style={{
+                                marginLeft: '0.5rem',
+                                padding: '0.15rem 0.4rem',
+                                fontSize: '0.65rem',
+                                background: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Load Model
+                            </button>
+                          )}
+                          {(task.type === 'image-to-3d' ||
+                            task.type === 'image-to-raw-mesh' ||
+                            task.type === 'text-to-3d' ||
+                            task.type === 'avatar-from-image') && (
+                            <button
+                              type="button"
+                              onClick={(event) => openCompletedRigPanel(task, event)}
+                              style={{
+                                marginLeft: '0.35rem',
+                                padding: '0.15rem 0.45rem',
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                background: '#0d6efd',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                              }}
+                              title="Rig this mesh — only pipelines that fit the model type"
+                            >
+                              Rig…
+                            </button>
+                          )}
+                        </>
                       )
                     )}
                     {canPublishRp1 && sceneAssemblerReady && (
@@ -1281,6 +1566,104 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                       url={resolveTextToImageDownloadUrl(task)}
                       apiEndpoint={apiEndpoint}
                     />
+                  )}
+
+                {task.status === 'completed' &&
+                  loadPayload &&
+                  !isTextToImageTaskResult(loadPayload) &&
+                  !isTextToMotionTaskResult(loadPayload) &&
+                  !isWorldLayerTaskResult(loadPayload) &&
+                  (task.type === 'image-to-3d' ||
+                    task.type === 'image-to-raw-mesh' ||
+                    task.type === 'text-to-3d' ||
+                    task.type === 'avatar-from-image' ||
+                    task.type === 'auto-rigging' ||
+                    getTaskResultMeshUrl(loadPayload) ||
+                    getTaskResultModelUrl(loadPayload)) && (
+                    <TaskMeshPreview
+                      meshUrl={
+                        getTaskResultMeshUrl(loadPayload) || getTaskResultModelUrl(loadPayload)
+                      }
+                      apiEndpoint={apiEndpoint}
+                      autoLoad3d
+                    />
+                  )}
+
+                {rigPanelTaskId === task.id &&
+                  task.status === 'completed' &&
+                  (task.type === 'image-to-3d' ||
+                    task.type === 'image-to-raw-mesh' ||
+                    task.type === 'text-to-3d' ||
+                    task.type === 'avatar-from-image') && (
+                    <div
+                      className="task-completed-rig-panel"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <p className="hint">
+                        Pipelines for{' '}
+                        <strong>{resolveCarriedObjectName(task) || task.name || 'this mesh'}</strong>
+                        — others hidden for this model type.
+                      </p>
+                      <label htmlFor={`rig-pipeline-${task.id}`}>Rig pipeline</label>
+                      <select
+                        id={`rig-pipeline-${task.id}`}
+                        value={rigPanelPipeline}
+                        onChange={(e) => setRigPanelPipeline(e.target.value)}
+                      >
+                        {recommendedRigPipelinesForTask(task).map((kind) => (
+                          <option key={kind} value={kind}>
+                            {PIPELINE_LABELS[kind] || kind}
+                          </option>
+                        ))}
+                      </select>
+                      {rigPanelPipeline === 'creature' ? (
+                        <select
+                          value={taskOptions.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID}
+                          onChange={(e) =>
+                            setTaskOptions((prev) => ({
+                              ...prev,
+                              creature_template_id: e.target.value,
+                            }))
+                          }
+                          aria-label="Creature template"
+                        >
+                          {CREATURE_TEMPLATE_OPTIONS.map((t) => (
+                            <option key={t.value} value={t.value}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                      <div className="task-completed-rig-actions">
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={(event) =>
+                            handleUseMeshForAutoRigging(task, event, rigPanelPipeline)
+                          }
+                        >
+                          Load &amp; open Auto Rigging
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRigPanelTaskId(null);
+                          }}
+                          style={{
+                            padding: '0.3rem 0.45rem',
+                            fontSize: '0.65rem',
+                            background: '#444',
+                            color: '#eee',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                 {isViewportFailed && viewportFailedMessage ? (
@@ -1353,7 +1736,11 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                 onClick={() => {
                   console.log('TaskManager: New Task button clicked');
                   console.log('TaskManager: isApiConnected:', isApiConnected);
-                  setShowNewTask(!showNewTask);
+                  if (showNewTask) {
+                    setShowNewTask(false);
+                  } else {
+                    openNewTaskForm(newTaskType, lastObjectNameRef.current);
+                  }
                 }}
                 disabled={!canOpenNewTaskForm}
               >
@@ -1531,6 +1918,11 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                 Pipeline: {PREFERRED_PIPELINES.explorableWorld.steps.join(' → ')}
               </p>
             )}
+            {newTaskType === 'environment-scan' && (
+              <p style={{ fontSize: '0.55rem', color: '#8f8', margin: '0 0 0.5rem', lineHeight: 1.35 }}>
+                Pipeline: {PREFERRED_PIPELINES.physicalReplicaScan.steps.join(' → ')} (1:1 meters)
+              </p>
+            )}
             {newTaskType === 'text-to-image' && (
               <p style={{ fontSize: '0.55rem', color: '#8f8', margin: '0 0 0.5rem', lineHeight: 1.35 }}>
                 Pipeline: {PREFERRED_PIPELINES.textToImageTo3d.steps.join(' → ')} (local Krea 2 Turbo, ~6–8 min on GB10)
@@ -1550,6 +1942,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                   <option value="image-to-raw-mesh">Image to Raw Mesh</option>
                   <option value="image-to-splat">Image to Gaussian Splat</option>
                   <option value="image-to-world">Image to World (splat + props)</option>
+                  <option value="environment-scan">Environment scan (walk → 1:1 twin)</option>
                   <option value="avatar-from-image">Avatar from Image (VRM)</option>
                   <option value="mesh-painting-text">Mesh painting (text)</option>
                   <option value="mesh-painting">Mesh painting (image)</option>
@@ -1576,7 +1969,10 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                   type="text"
                   className="input w-full"
                   value={newObjectName}
-                  onChange={(e) => setNewObjectName(e.target.value)}
+                  onChange={(e) => {
+                    objectNameTouchedRef.current = true;
+                    setNewObjectName(e.target.value);
+                  }}
                   placeholder={objectNamePlaceholder}
                   required
                   maxLength={64}
@@ -1585,7 +1981,9 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                   autoComplete="off"
                 />
                 <p style={{ fontSize: '0.55rem', color: '#888', margin: '0.25rem 0 0' }}>
-                  Required before starting. Shown in the task list and used when publishing to RP1 / Scene Assembler.
+                  Required before starting. Auto-fills from the uploaded image filename and
+                  carries across chained tasks (Use for Image to 3D / Auto Rigging). Edit anytime
+                  to override.
                 </p>
               </div>
 
@@ -1628,18 +2026,111 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
               {(getModelsForTaskType(newTaskType).length > 0 ||
                 newTaskType === 'avatar-from-image') && (
                 <div className="mb-1.5">
+                  {newTaskType === 'auto-rigging' && (
+                    <div className="mb-1.5">
+                      <label
+                        style={{
+                          fontSize: '0.65rem',
+                          marginBottom: '0.25rem',
+                          display: 'block',
+                          color: '#ccc',
+                        }}
+                      >
+                        Rig pipeline:
+                      </label>
+                      <select
+                        value={
+                          taskOptions.rig_mode === AUTO_RIG_MODES.CREATURE_TEMPLATE
+                            ? 'creature'
+                            : taskOptions.rig_mode === AUTO_RIG_MODES.APPEARANCE_COMPONENT
+                              ? 'appearance'
+                              : taskOptions.rig_mode === AUTO_RIG_MODES.TEMPLATE ||
+                                  taskOptions.rig_mode === AUTO_RIG_MODES.TEMPLATE_WRAP
+                                ? 'template'
+                                : 'skintokens'
+                        }
+                        onChange={(e) => handleAutoRigPipelineKind(e.target.value)}
+                        className="input w-full"
+                        data-testid="auto-rig-pipeline-select"
+                        style={{ padding: '0.375rem', fontSize: '0.65rem' }}
+                      >
+                        <option value="skintokens">
+                          SkinTokens — biped / character (Eagle Knight, humans)
+                        </option>
+                        <option value="appearance">
+                          Appearance clothing — fit to VRM slot (Joggers, Shirt, Boots…)
+                        </option>
+                        <option value="creature">
+                          Creature template — fox / quadruped (Mesh2Motion)
+                        </option>
+                        <option value="template">
+                          UniRig template VRM — humanoid morph-ready skeleton
+                        </option>
+                      </select>
+                      <p style={{ fontSize: '0.55rem', color: '#8f8', margin: '0.25rem 0 0' }}>
+                        {inferAutoRigPipelineKind({ objectName: newObjectName }) === 'appearance'
+                          ? 'Detected clothing name → Appearance slot fit (not SkinTokens).'
+                          : inferAutoRigPipelineKind({ objectName: newObjectName }) === 'creature'
+                            ? 'Detected creature-like name → fox pipeline selected.'
+                            : inferAutoRigPipelineKind({ objectName: newObjectName }) === 'template'
+                              ? 'Detected template/UniRig hint → UniRig pipeline selected.'
+                              : 'Tip: name the object “Joggers” or “Fox” to auto-select the right pipeline.'}
+                      </p>
+                      {taskOptions.rig_mode === AUTO_RIG_MODES.CREATURE_TEMPLATE && (
+                        <div style={{ marginTop: '0.35rem' }}>
+                          <label
+                            style={{
+                              fontSize: '0.6rem',
+                              color: '#aaa',
+                              display: 'block',
+                              marginBottom: '0.15rem',
+                            }}
+                          >
+                            Creature template
+                          </label>
+                          <select
+                            className="input w-full"
+                            value={taskOptions.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID}
+                            onChange={(e) =>
+                              setTaskOptions((prev) => ({
+                                ...prev,
+                                creature_template_id: e.target.value,
+                              }))
+                            }
+                            style={{ padding: '0.375rem', fontSize: '0.65rem' }}
+                          >
+                            {CREATURE_TEMPLATE_OPTIONS.map((t) => (
+                              <option key={t.value} value={t.value}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <label style={{ fontSize: '0.65rem', marginBottom: '0.25rem', display: 'block', color: '#ccc' }}>
                     {newTaskType === 'avatar-from-image' ? 'Mesh model (image → 3D):' : 'Model:'}
                   </label>
                   <select
                     value={newTaskModel}
-                    onChange={(e) => setNewTaskModel(e.target.value)}
+                    onChange={(e) => {
+                      if (newTaskType === 'auto-rigging') {
+                        handleAutoRigModelChange(e.target.value);
+                      } else {
+                        setNewTaskModel(e.target.value);
+                      }
+                    }}
                     className="input w-full"
                     style={{ padding: '0.375rem', fontSize: '0.65rem' }}
                   >
                     {(newTaskType === 'avatar-from-image'
                       ? getModelsForTaskType('image-to-3d')
-                      : getModelsForTaskType(newTaskType)
+                      : newTaskType === 'auto-rigging'
+                        ? getAutoRigModelsForRigMode(
+                            taskOptions.rig_mode ?? getDefaultRigModeForTaskType('auto-rigging'),
+                          )
+                        : getModelsForTaskType(newTaskType)
                     ).map((model) => (
                       <option key={model.value} value={model.value}>
                         {model.label}
@@ -1765,6 +2256,100 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                 </div>
               )}
 
+              {newTaskType === 'environment-scan' && (
+                <div className="mb-1.5" style={{ fontSize: '0.6rem', color: '#aaa' }}>
+                  <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem' }}>
+                    1:1 metric calibration
+                  </label>
+                  <select
+                    className="input w-full"
+                    value={taskOptions.metric_mode || 'auto_bbox'}
+                    onChange={(e) =>
+                      setTaskOptions((prev) => ({ ...prev, metric_mode: e.target.value }))
+                    }
+                    style={{ padding: '0.375rem', fontSize: '0.65rem', marginBottom: '0.5rem' }}
+                    data-testid="environment-scan-metric-mode"
+                  >
+                    <option value="auto_bbox">
+                      Auto bbox — true_meters = real room span (diagonal / longest wall)
+                    </option>
+                    <option value="reference_length">
+                      Reference length — measured door/wall in meters + recon length
+                    </option>
+                    <option value="player_height">
+                      Player height — true_meters ≈ avatar height, recon_length = height in recon
+                    </option>
+                  </select>
+                  <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem' }}>
+                    True length (meters) <span style={{ color: '#f88' }}>*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    className="input w-full"
+                    value={taskOptions.metric_true_meters}
+                    onChange={(e) =>
+                      setTaskOptions((prev) => ({ ...prev, metric_true_meters: e.target.value }))
+                    }
+                    placeholder="e.g. 0.91 door width, or 4.2 room diagonal"
+                    data-testid="environment-scan-true-meters"
+                    style={{ padding: '0.375rem', fontSize: '0.65rem', marginBottom: '0.5rem' }}
+                  />
+                  {(taskOptions.metric_mode === 'reference_length' ||
+                    taskOptions.metric_mode === 'player_height') && (
+                    <>
+                      <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem' }}>
+                        Same length in reconstruction units
+                      </label>
+                      <input
+                        type="number"
+                        min={0.0001}
+                        step="any"
+                        className="input w-full"
+                        value={taskOptions.metric_recon_length}
+                        onChange={(e) =>
+                          setTaskOptions((prev) => ({
+                            ...prev,
+                            metric_recon_length: e.target.value,
+                          }))
+                        }
+                        placeholder="Distance between the same two points in recon space"
+                        style={{ padding: '0.375rem', fontSize: '0.65rem', marginBottom: '0.5rem' }}
+                      />
+                    </>
+                  )}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      marginTop: '0.5rem',
+                      fontSize: '0.65rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(taskOptions.refine_to_3dgs)}
+                      onChange={(e) =>
+                        setTaskOptions((prev) => ({
+                          ...prev,
+                          refine_to_3dgs: e.target.checked,
+                        }))
+                      }
+                      data-testid="environment-scan-refine-3dgs"
+                    />
+                    Refine to 3DGS (Phase A — Spark Gaussians from points)
+                  </label>
+                  <p style={{ fontSize: '0.55rem', color: '#888', margin: '0.25rem 0 0' }}>
+                    Best 1:1: tape a door/wall, use reference_length with recon points. auto_bbox is
+                    approximate. Phase A is fast isotropic Gaussians; Phase B gsplat train is
+                    documented in LINGBOT_MAP_ENVIRONMENT_SCAN.md. Does not change Image to World
+                    (TripoSplat).
+                  </p>
+                </div>
+              )}
+
               {newTaskType === 'avatar-from-image' && (
                 <div className="mb-1.5" style={{ fontSize: '0.6rem', color: '#aaa' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -1791,7 +2376,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
               {!requiresModel(newTaskType) &&
                 newTaskType !== 'avatar-from-photo' &&
                 newTaskType !== 'avatar-from-image' &&
-                newTaskType !== 'image-to-world' && (
+                newTaskType !== 'image-to-world' &&
+                newTaskType !== 'environment-scan' && (
                 <div className="mb-1.5">
                   {newTaskType === 'text-to-image' && (
                     <TextToImagePromptOptions
@@ -1836,6 +2422,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                 newTaskType === 'image-to-raw-mesh' ||
                 newTaskType === 'image-to-splat' ||
                 newTaskType === 'image-to-world' ||
+                newTaskType === 'environment-scan' ||
                 newTaskType === 'avatar-from-image' ||
                 newTaskType === 'mesh-painting' ||
                 newTaskType === 'mesh-editing-image' ||
@@ -1850,6 +2437,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                         ? 'Upload photo(s) (1 → TripoSplat, 2+ → WorldMirror):'
                         : newTaskType === 'image-to-world'
                           ? 'Upload Reference Image:'
+                        : newTaskType === 'environment-scan'
+                          ? 'Upload walk video or ≥3 frames:'
                         : newTaskType === 'avatar-from-image'
                           ? 'Upload Photo (avatar pipeline):'
                           : newTaskType === 'mesh-painting' || newTaskType === 'mesh-editing-image'
@@ -1860,7 +2449,11 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                     ref={fileInputRef}
                     id="task-image-file-input"
                     type="file"
-                    accept="image/*"
+                    accept={
+                      newTaskType === 'environment-scan'
+                        ? 'video/*,image/*,.mp4,.webm,.mov,.mkv,.avi,.m4v'
+                        : 'image/*'
+                    }
                     multiple={supportsMultiImageInput(newTaskType)}
                     data-testid="task-image-file-input"
                     onChange={handleImageChange}

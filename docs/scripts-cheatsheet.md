@@ -484,6 +484,8 @@ Local **Krea 2 Turbo** via diffusers `Krea2Pipeline` — **no Krea cloud API**. 
 
 **Multiview mesh:** `trellis_image_to_textured_mesh` + `trellis2_image_to_textured_mesh` (2–8 photos) — Task Manager **Image to 3D** multi-upload + checkbox; API `reference_image_file_ids` on `/mesh-generation/image-to-textured-mesh`.
 
+**Studio canvas (Phase 1):** OpenNexus `/studio` — Graph + Kanban for the locked Krea → TRELLIS.2 template (`memory-bank/studio-canvas-phase1.md`). Run pipeline via Task Manager; **Open mesh in viewport** uses `/?loadMesh=…`.
+
 ---
 
 ## 7b. Kimodo text-to-motion (DGX)
@@ -805,7 +807,26 @@ Native OMB browser engine ([MetaversalCorp/Sneeze](https://github.com/Metaversal
 | Force scrub + rebuild | DGX | `cd /home/sifr/Sneeze` | `bash scripts/build-linux.sh --rebuild` |
 | Smoke tests (manual) | DGX | `cd /home/sifr/Sneeze` | `builds/linux-arm64/install/release/bin/SneezeTest --wasm --net` |
 
-Artifact: `builds/linux-arm64/install/release/lib/libSneeze.a`. More: `Sneeze/docs/DGX_SPARK.md`.
+Artifact: `builds/linux-arm64/install/release/lib/libSneeze.a`. More: `Sneeze/docs/guides/dgx-spark.md`.
+
+---
+
+## 20b. Space-Time Host (DGX) — OMB fabric viewer
+
+Minimal native browser shell (**SDL + Sneeze**). Your viewer — not Artemis. Opens MSF fabric URLs in 3D.
+
+Docs/examples: [MetaversalCorp/SneezeDoc](https://github.com/MetaversalCorp/SneezeDoc) cloned at `/home/sifr/SneezeDoc` (embedding guide + stool example).
+
+| Task | Where | Folder | Command |
+|------|-------|--------|---------|
+| Build (needs Sneeze deps) | DGX | `cd /home/sifr/SpaceTimeHost` | `bash scripts/build-dgx.sh` |
+| Run SneezeDoc stool (CDN) | DGX | same | `bash scripts/run-dgx.sh --url https://cdn.rp1.com/sneeze/examples/stool.json` |
+| Run vs local MSF | DGX | same | `bash scripts/run-dgx.sh --url https://127.0.0.1:8443/fabric/sample.msf` |
+| Update SneezeDoc wiki clone | DGX | `cd /home/sifr/SneezeDoc` | `git pull --ff-only` |
+
+**Prerequisite for local MSF:** `bash /home/sifr/3DAIGC-API/scripts/start-dgx-after-reboot.sh`. Sneeze deps: `cd /home/sifr/Sneeze && bash scripts/build-dgx-spark.sh` (or `--only sneeze-sdk` / `fastgltf` if only those missing).
+
+Binary: `SpaceTimeHost/install/release/bin/spacetime-host`. Keys: F5 reload, Ctrl+Alt+F5 reset, Esc quit.
 
 ---
 

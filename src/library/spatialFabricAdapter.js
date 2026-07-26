@@ -338,10 +338,13 @@ export async function publishGlbBlobToSpatialFabric(
   blob,
   filename = 'export.glb',
   assetName,
-  { usePbr = true } = {},
+  { usePbr = true, viewportLighting = null } = {},
 ) {
   const form = new FormData();
   form.append('file', blob, filename);
+  if (viewportLighting && typeof viewportLighting === 'object') {
+    form.append('viewport_lighting', JSON.stringify(viewportLighting));
+  }
   const stem =
     assetName ||
     filename.replace(/-draco\.glb$/i, '').replace(/\.glb$/i, '') ||

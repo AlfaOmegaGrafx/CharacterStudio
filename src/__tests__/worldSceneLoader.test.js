@@ -9,6 +9,7 @@ import {
   scaleWorldPropsToHumanProportions,
   scaleWorldToHumanProportions,
   orientWorldPropFeetDown,
+  shouldSkipXrFloorWrap,
 } from '../library/worldSceneLoader.js';
 
 describe('worldSceneLoader transforms', () => {
@@ -42,6 +43,14 @@ describe('worldSceneLoader transforms', () => {
 
     expect(splat.quaternion.y).toBeCloseTo(1);
     expect(splat.quaternion.w).toBeCloseTo(0);
+  });
+
+  it('applies non-uniform XYZ scale from manifest', () => {
+    const root = new THREE.Group();
+    applyWorldTransform(root, { scale: [1.62, 1, 1.62] });
+    expect(root.scale.x).toBeCloseTo(1.62);
+    expect(root.scale.y).toBeCloseTo(1);
+    expect(root.scale.z).toBeCloseTo(1.62);
   });
 
   it('orients props feet-down when longest axis is not Y', () => {
@@ -94,6 +103,56 @@ describe('worldSceneLoader transforms', () => {
     };
 
     expect(computeXrFloorAlignmentY(sceneManager)).toBeCloseTo(2);
+  });
+
+  it('computeXrFloorAlignmentY uses mesh feet for rigged avatars, not armature tails', () => {
+    const playerRoot = new THREE.Group();
+    playerRoot.name = 'playerRoot';
+
+    const boneLow = new THREE.Bone();
+    boneLow.position.y = -1;
+    const boneHigh = new THREE.Bone();
+    boneHigh.position.y = 0.5;
+    boneLow.add(boneHigh);
+
+    const skinned = new THREE.SkinnedMesh(
+      new THREE.BoxGeometry(0.4, 1.6, 0.3),
+      new THREE.MeshBasicMaterial(),
+    );
+    skinned.position.y = 0.8;
+    skinned.add(boneLow);
+    skinned.bind(new THREE.Skeleton([boneLow, boneHigh]));
+
+    const model = new THREE.Group();
+    model.userData.vrm = true;
+    model.add(skinned);
+    playerRoot.add(model);
+    playerRoot.updateMatrixWorld(true);
+
+    const sceneManager = {
+      playerRoot,
+      worldRoot: new THREE.Group(),
+      propsRoot: new THREE.Group(),
+      currentModel: model,
+      vrSceneWrapper: null,
+      xrLocomotionRig: null,
+    };
+
+    expect(computeXrFloorAlignmentY(sceneManager)).toBeCloseTo(0, 2);
+    expect(sceneManager._lastXrFloorDiagnostics?.floorAlignmentY).toBeCloseTo(0, 2);
+  });
+
+  it('shouldSkipXrFloorWrap excludes viewport grid and axes helpers', () => {
+    const grid = new THREE.GridHelper(10, 10);
+    grid.name = 'viewportGridHelper';
+    const axes = new THREE.AxesHelper(2);
+    axes.name = 'viewportAxesHelper';
+    const playerRoot = new THREE.Group();
+    playerRoot.name = 'playerRoot';
+
+    expect(shouldSkipXrFloorWrap(grid)).toBe(true);
+    expect(shouldSkipXrFloorWrap(axes)).toBe(true);
+    expect(shouldSkipXrFloorWrap(playerRoot)).toBe(false);
   });
 
   it('scales undersized world props toward human viewport proportions', () => {

@@ -1,0 +1,22 @@
+---
+description: LingBot env-scan / Phase A 3DGS client load — do not regress
+globs: OpenNexus3DStudio/src/library/{worldSceneLoader,pointCloudPlyLoader,worldPackage,taskManager}*
+alwaysApply: false
+---
+
+# LingBot env-scan + 3DGS load — protected
+
+Read `memory-bank/lingbot-env-scan-orientation-protected-state.md` before editing world load routing.
+
+## Invariants
+
+| Case | Rule |
+|------|------|
+| `gaussian_splat` / `spark` / gaussian source | Spark loader only |
+| LingBot Phase A Gaussian | `orientationMode: 'none'` |
+| `point_cloud` / `points` | XYZRGB point loader |
+
+## Forbidden
+
+- Routing all `lingbot` pipelines through XYZRGB (scatters Gaussian PLYs)
+- TripoSplat 180° X flip on gravity-aligned LingBot Gaussians

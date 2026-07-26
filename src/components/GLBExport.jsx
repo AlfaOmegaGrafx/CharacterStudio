@@ -35,7 +35,7 @@ const GLBExport = ({ apiEndpoint = '' }) => {
     ombUsePbr: true,
   });
 
-  const { currentModel, exportModel } = useScene();
+  const { currentModel, exportModel, sceneManager } = useScene();
   const {
     sendGlbToMetaverseBrowser,
     config: spatialConfig,
@@ -148,7 +148,11 @@ const GLBExport = ({ apiEndpoint = '' }) => {
         result.blob,
         filename,
         assetStem,
-        { preopenedTab },
+        {
+          preopenedTab,
+          viewportLighting: sceneManager?.getViewportLightingState?.() || null,
+          usePbr: exportOptions.ombUsePbr !== false,
+        },
       );
       const omb = normalizeOmbTier(published?.omb);
       if (omb) setOmbHint(omb);

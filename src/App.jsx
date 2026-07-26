@@ -37,7 +37,15 @@ import {
 } from './library/taskModelUrl';
 import { exportAvatarPipelineVrm } from './library/avatarPipelineExport.js';
 import { attachSplatPreviewMetadata } from './library/vrmTemplateMetadata.js';
-import { parseJobHandoffFromLocation } from './library/jobHandoff.js';
+import {
+  parseJobHandoffFromLocation,
+  parseLoadMeshFromLocation,
+  clearLoadMeshFromLocation,
+} from './library/jobHandoff.js';
+import {
+  equipAppearanceComponentTrait,
+  inferAppearanceSlot,
+} from './library/appearanceClothing.js';
 import {
   AI_BACKEND_UNAVAILABLE_MSG,
   canBrowseAiTaskCatalog,
@@ -315,6 +323,24 @@ function AppContent() {
     };
   }, [isConnected, adoptJobHandoff, forceConnectionCheck]);
 
+  // Studio canvas → viewport (?loadMesh=<download-url>)
+  const studioLoadMeshConsumedRef = useRef(false);
+  useEffect(() => {
+    if (!isViewportReady || studioLoadMeshConsumedRef.current) return undefined;
+    const raw = parseLoadMeshFromLocation();
+    if (!raw) return undefined;
+    studioLoadMeshConsumedRef.current = true;
+    const resolved = resolveTaskModelUrl(raw, apiEndpoint) || raw;
+    clearLoadMeshFromLocation();
+    console.log('App: Studio loadMesh handoff', resolved);
+    window.dispatchEvent(
+      new CustomEvent('loadModelFromUrl', {
+        detail: { url: resolved, source: 'studio-loadMesh' },
+      }),
+    );
+    return undefined;
+  }, [isViewportReady, apiEndpoint]);
+
   const pendingGeneratedModelRef = useRef(null);
 
   // Auto-load completed task meshes into the main viewport (when scene is ready)
@@ -410,14 +436,34 @@ function AppContent() {
         taskResult?.creature_template_id != null ||
         taskResult?.inputs?.creature_template_id != null ||
         taskResult?.result?.generation_info?.rig_mode === 'creature_template';
+      const isAppearanceComponentRig =
+        autoRigMeta.rig_info?.rig_mode === 'appearance_component' ||
+        autoRigMeta.rig_info?.rig_type === 'appearance_component' ||
+        autoRigMeta.rig_info?.generation_method === 'appearance_component_vrm_fit' ||
+        taskResult?.inputs?.rig_mode === 'appearance_component' ||
+        taskResult?.result?.generation_info?.rig_mode === 'appearance_component';
+      const appearanceSlot =
+        autoRigMeta.rig_info?.equip_slot ||
+        autoRigMeta.rig_info?.appearance_slot ||
+        taskResult?.inputs?.appearance_slot ||
+        taskResult?.result?.rig_info?.appearance_slot ||
+        inferAppearanceSlot({
+          objectName: task?.options?.object_name || task?.name || taskResult?.inputs?.object_name,
+        }) ||
+        'Waist';
       const isAutoRig =
         taskResult?.feature === 'auto_rig' ||
         taskResult?.result?.rig_info != null ||
         autoRigMeta.bone_count > 0 ||
         isTemplateRig ||
-        isCreatureTemplateRig;
+        isCreatureTemplateRig ||
+        isAppearanceComponentRig;
       const preserveExportedOrientation =
-        isAvatarFromImage || isTemplateRig || isCreatureTemplateRig || isAutoRig;
+        isAvatarFromImage ||
+        isTemplateRig ||
+        isCreatureTemplateRig ||
+        isAppearanceComponentRig ||
+        isAutoRig;
       const shouldExportVrm = task?.options?.export_vrm_after === true;
 
       const runLoad = async () => {
@@ -432,10 +478,10 @@ function AppContent() {
           autoScale: false,
           autoCenter: false,
           layer: 'player',
-          fileExtension: fileExtension || undefined,
+          fileExtension: fileExtension || (isAppearanceComponentRig ? 'vrm' : undefined),
           autoRigMeta: isAutoRig ? autoRigMeta : null,
           attachRigFbxUrl: isAutoRig ? attachRigFbxUrl : null,
-          templateRig: isTemplateRig || isCreatureTemplateRig,
+          templateRig: isTemplateRig || isCreatureTemplateRig || isAppearanceComponentRig,
           preserveExportedOrientation,
         });
 
@@ -444,6 +490,28 @@ function AppContent() {
             detail: { jobId, source },
           }),
         );
+
+        if (isAppearanceComponentRig && characterManager && resolved) {
+          try {
+            const equip = await equipAppearanceComponentTrait(
+              characterManager,
+              resolved,
+              appearanceSlot,
+            );
+            if (equip.equipped) {
+              console.log(`App: Equipped appearance component into ${equip.slot}`);
+              window.dispatchEvent(
+                new CustomEvent('appearanceComponentEquipped', {
+                  detail: { jobId, slot: equip.slot, url: resolved },
+                }),
+              );
+            } else {
+              console.warn('App: Appearance equip skipped:', equip.error);
+            }
+          } catch (equipErr) {
+            console.warn('App: Appearance component equip failed:', equipErr);
+          }
+        }
 
         if (shouldExportVrm && model) {
           try {
@@ -548,7 +616,7 @@ function AppContent() {
         } catch (error) {
           console.error('App: Failed to load generated world:', error);
         }
-        if (loadPayload?.feature === 'image_to_world' || loadPayload?.pipelineStage === 'world_package') {
+        if (loadPayload?.feature === 'image_to_world' || loadPayload?.feature === 'environment_scan' || loadPayload?.pipelineStage === 'world_package') {
           return;
         }
       }
@@ -891,6 +959,9 @@ function AppContent() {
               </span>
             </div>
           </div>
+          <a className="title-xr-lab-link" href="/studio" title="Node / Kanban studio (Krea → TRELLIS.2)">
+            Studio
+          </a>
           <a className="title-xr-lab-link" href="/xr" title="IWSDK immersive mode (WebXR lab)">
             XR Lab
           </a>
