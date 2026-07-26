@@ -15,6 +15,7 @@ import {
 } from '../library/viewportExpressionVrm';
 import { getMixamoAnimation, getMixamoAnimationForRig } from '../library/loadMixamoAnimation';
 import { countModelBones } from '../library/rigBoneUtils';
+import { shouldUseCreatureFaceRetarget } from '../library/creatureFaceRetarget';
 
 export const SceneContext = createContext();
 
@@ -71,6 +72,9 @@ export const SceneProvider = ({ children }) => {
         manifestIdentifier: null
       });
     }
+    // XR menu Animation tab resolves clips/playback via SceneManager bridge
+    sceneManagerRef.current.getAnimationManager = () =>
+      characterManagerRef.current?.animationManager ?? null;
     setManagersReady(true);
   }, []);
 
@@ -687,6 +691,11 @@ export const SceneProvider = ({ children }) => {
     if (!webcamDriverRef.current) {
       webcamDriverRef.current = new WebcamAvatarDriver({
         getVRMs: getVRMsForWebcam,
+        getFaceRoots: () => {
+          const model = sceneManagerRef.current?.currentModel;
+          if (model && shouldUseCreatureFaceRetarget(model)) return [model];
+          return [];
+        },
         getRenderer: () => ({ renderer: sceneManagerRef.current?.renderer ?? null }),
         setBodyFrameHook: (hook) => {
           sceneManagerRef.current?.setWebcamBodyFrameHook?.(hook);

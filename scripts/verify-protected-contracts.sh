@@ -40,6 +40,12 @@ if [[ -f "$ROOT/node_modules/vitest/vitest.mjs" ]]; then
 fi
 
 echo ""
+echo "--- XR avatar view / locomotion / menu ---"
+if ! bash "$ROOT/scripts/verify_xr_avatar_view_locomotion.sh"; then
+  fail=1
+fi
+
+echo ""
 if [[ "$fail" -eq 0 ]]; then
   echo "PROTECTED_CONTRACTS_OK"
   exit 0

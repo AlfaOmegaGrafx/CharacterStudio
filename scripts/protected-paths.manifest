@@ -111,3 +111,16 @@ src/__tests__/pointCloudWorldLoad.test.js
 src/__tests__/worldSceneLoader.test.js
 memory-bank/lingbot-env-scan-orientation-protected-state.md
 .cursor/rules/lingbot-env-scan-orientation-protected.mdc
+
+# --- XR avatar view / locomotion / in-headset menu ---
+src/library/sceneManagerXrAvatarView.js
+src/library/sceneManagerXrLocomotion.js
+src/library/sceneManagerXrMenu.js
+src/library/sceneManagerXrInteraction.js
+src/context/SceneContext.jsx
+src/__tests__/sceneManagerXrAvatarView.test.js
+src/__tests__/sceneManagerXrLocomotion.test.js
+src/__tests__/sceneManagerXrMenu.test.js
+scripts/verify_xr_avatar_view_locomotion.sh
+memory-bank/xr-avatar-view-locomotion-protected-state.md
+.cursor/rules/xr-avatar-view-locomotion-protected.mdc

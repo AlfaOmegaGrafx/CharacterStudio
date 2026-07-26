@@ -9,9 +9,19 @@ import { SceneManagerXrGrab } from './sceneManagerXrGrab.js';
 import {
   SceneManagerXrLocomotion,
   ensureXrLocomotionRig,
+  alignXrLocomotionRigToViewport,
 } from './sceneManagerXrLocomotion.js';
 import { SceneManagerXrTeleport } from './sceneManagerXrTeleport.js';
 import { SceneManagerXrMouseEmulation } from './sceneManagerXrMouseEmulation.js';
+import {
+  SceneManagerXrAvatarView,
+  XR_AVATAR_VIEW_FIRST_PERSON,
+} from './sceneManagerXrAvatarView.js';
+import { SceneManagerXrMenu } from './sceneManagerXrMenu.js';
+import { SceneManagerXrMeasure } from './sceneManagerXrMeasure.js';
+import {
+  createSceneManagerXrControllerVisuals,
+} from './sceneManagerXrControllerVisuals.js';
 import {
   isThumbstickTeleportAim,
   readRightThumbstickAxes,
@@ -35,10 +45,21 @@ export class SceneManagerXrInteraction {
     this.grab = new SceneManagerXrGrab(sceneManager);
     this.locomotion = new SceneManagerXrLocomotion(sceneManager);
     this.teleport = new SceneManagerXrTeleport(sceneManager);
+    this.avatarView = new SceneManagerXrAvatarView(sceneManager, this.locomotion);
+    this.measure = new SceneManagerXrMeasure(sceneManager);
+    this.menu = new SceneManagerXrMenu(
+      sceneManager,
+      this.avatarView,
+      this.locomotion,
+      this.measure,
+    );
     this.mouseEmulation = new SceneManagerXrMouseEmulation(sceneManager);
+    this.controllerVisuals = createSceneManagerXrControllerVisuals(sceneManager);
     this._demoCube = null;
     this._lastFrameTime = 0;
     this._capabilityLogged = false;
+    /** Align viewer to desktop viewport on the first XR frame with a real headset pose. */
+    this._viewportAlignPending = false;
   }
 
   /**
@@ -47,15 +68,29 @@ export class SceneManagerXrInteraction {
    */
   onSessionStart(session, options = {}) {
     ensureXrLocomotionRig(this.sceneManager);
+    // Defer viewport align until the first XR frame (headset pose is not at origin).
+    this._viewportAlignPending = true;
+    this.controllerVisuals.onSessionStart(session);
+    this.avatarView.onSessionStart(options);
     this.syncGrabbablesFromScene();
     if (this.grab._grabbableRoots.length === 0 && options.isVR !== false) {
       this._ensureDemoGrabbable();
     }
     this._logCapabilityOnce(session, options);
-    console.log('[XR][interaction] Session started — input, grab, locomotion, teleport active on /');
+    console.log(
+      '[XR][interaction] Session started — input, grab, locomotion, teleport, controller/hand visuals on /',
+      this.avatarView.hasAvatar()
+        ? `(avatar: ${this.avatarView.mode}, left Y = menu, left X = toggle view)`
+        : '',
+    );
   }
 
   onSessionEnd() {
+    this._viewportAlignPending = false;
+    this.menu.reset();
+    this.measure.reset();
+    this.avatarView.onSessionEnd();
+    this.controllerVisuals.onSessionEnd();
     this._removeDemoGrabbable();
     this.grab.reset();
     this.input.reset();
@@ -87,6 +122,19 @@ export class SceneManagerXrInteraction {
       this.sceneManager.xrReferenceSpace ||
       this.sceneManager.renderer.xr.getReferenceSpace?.();
 
+    if (this._viewportAlignPending) {
+      const aligned = alignXrLocomotionRigToViewport(
+        this.sceneManager,
+        frame,
+        referenceSpace,
+      );
+      if (aligned) {
+        this._viewportAlignPending = false;
+        // Standoff after viewport align so the avatar sits in front of the live headset.
+        this.avatarView.applyEntryStandoff();
+      }
+    }
+
     const session =
       frame.session ||
       this.sceneManager.xrSession ||
@@ -105,26 +153,52 @@ export class SceneManagerXrInteraction {
     this._lastFrameTime = time;
 
     const pointers = this.input.update(frame, referenceSpace, inputSources);
+    this.controllerVisuals.update(frame, referenceSpace, pointers);
     this.sceneManager.emit?.('xrInputFrame', { pointers, frame, time });
 
     const right = pointers.find((p) => p.handedness === 'right') || null;
     const rightStick = readRightThumbstickAxes(right);
 
-    this.grab.update(pointers);
-    this.mouseEmulation.update(pointers);
+    this.menu.update(pointers);
 
-    const hasGrab = this.grab.hasActiveGrab();
-    if (hasGrab) {
-      this.teleport.reset();
-      this.grab.applyRightStickPlacement(rightStick.y, deltaSeconds, pointers);
-    } else {
-      this.teleport.update(right);
+    const menuOpen = this.menu.open;
+    const menuConsumedSelect = menuOpen && this.menu.handlePointerSelect(pointers);
+    const measureConsumedSelect =
+      !menuConsumedSelect &&
+      this.measure.active &&
+      !menuOpen &&
+      this.measure.handlePointerSelect(pointers);
+
+    // Always draw rays; when menu is open, stop cursor on the panel face.
+    // Stick locomotion stays live while the menu is open.
+    this.grab.update(pointers, {
+      uiRaycast: menuOpen ? (p) => this.menu.raycast(p) : null,
+      suppressGrab: menuConsumedSelect || measureConsumedSelect,
+    });
+
+    if (!measureConsumedSelect) {
+      if (!menuConsumedSelect) {
+        this.mouseEmulation.update(pointers);
+      }
+
+      const hasGrab = this.grab.hasActiveGrab();
+      if (hasGrab) {
+        this.teleport.reset();
+        this.grab.applyRightStickPlacement(rightStick.y, deltaSeconds, pointers);
+      } else {
+        this.teleport.update(right);
+      }
+
+      const skipRightTurn =
+        this.teleport.isAiming() ||
+        isThumbstickTeleportAim(rightStick.y, rightStick.x);
+      this.locomotion.update(deltaSeconds, pointers, {
+        skipRightTurn,
+        // First-person: drive the locomotion rig so the embodied avatar (and world)
+        // slide under the headset. Moving playerRoot alone leaves the camera fixed.
+        firstPersonEmbody: this.avatarView.mode === XR_AVATAR_VIEW_FIRST_PERSON,
+      });
     }
-
-    const skipRightTurn =
-      this.teleport.isAiming() ||
-      (!hasGrab && isThumbstickTeleportAim(rightStick.y, rightStick.x));
-    this.locomotion.update(deltaSeconds, pointers, { skipRightTurn });
   }
 
   _ensureDemoGrabbable() {

@@ -1,0 +1,35 @@
+---
+description: XR embody / third-person / Move / menu invariants — do not regress
+globs: OpenNexus3DStudio/src/library/sceneManagerXr*.js
+alwaysApply: false
+---
+
+# XR avatar view + locomotion + menu — protected
+
+**User locked 2026-07-26.** Read `memory-bank/xr-avatar-view-locomotion-protected-state.md` before editing XR view, move, or in-headset menu.
+
+## Invariants
+
+| Area | Rule |
+|------|------|
+| XR spawn | First-frame `alignXrLocomotionRigToViewport` from `preXRCamera*` + live headset pose |
+| Left X | Toggle view **always** (menu open or closed) |
+| Stick click | Toggle Move **always** (menu open or closed) |
+| Embody align | Rig **XZ + yaw only** — never Y |
+| Disembody | Avatar at exit spot, face headset; viewer **1 m behind**; Move → **Viewpoint** |
+| Yaw math | Parent-local; θ = `atan2(fx, fz)` (yaw 0 faces +Z in this tree) |
+| Menu | Opaque; View/Move/Measure paired with status; grip-local forward+down on left controller |
+
+## Forbidden without explicit user request
+
+- Teleport avatar back to pre-embody spot on disembody
+- Rig Y shifts on embody
+- Leave Move: Avatar after switching to third person
+- Require menu open for X or stick-click Move
+- Float menu ~0.5 m ahead with no down offset
+
+## Verify
+
+```bash
+bash scripts/verify_xr_avatar_view_locomotion.sh
+```
