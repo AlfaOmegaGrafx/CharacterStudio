@@ -1,0 +1,29 @@
+---
+description: Tasks panel completed collapse + viewport Clear — locked UI (do not regress)
+alwaysApply: true
+---
+
+# Tasks panel UI — protected (do not regress)
+
+**User-confirmed (2026-07-30).** Read `memory-bank/tasks-panel-ui-protected-state.md` before editing Tasks toolbar or completed list chrome.
+
+## Invariants
+
+| Control | Rule |
+|---------|------|
+| Completed | Collapsible via `expand-icon-button` / `task-completed-expand-btn` (Bone Structure pattern) |
+| Clear | Unloads viewport model via `clearModel()` when `currentModel` is set (Worlds Clear parity) |
+| Clear done | Removes completed tasks from the list only (`clearCompletedTasks`) |
+
+## Forbidden without explicit user request
+
+- Dropping the completed collapse control
+- Making **Clear** only clear the task list again
+- Viewport Clear deleting task history
+
+## Before merging touches
+
+```bash
+bash scripts/verify_tasks_panel_ui.sh
+bash scripts/lock-it-in.sh --message "feat(tasks): lock panel UI"
+```

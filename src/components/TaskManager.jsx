@@ -21,6 +21,11 @@ import {
   resolveAutoRigModelForTask,
   resolveMeshModelForAvatarFromImage,
   resolveSplatModelForPhotos,
+  API_MAX_MESH_VERTICES,
+  PIPELINE_MESH_DECIMATION_TARGET,
+  PIPELINE_MESH_DECIMATION_MAX,
+  PIPELINE_MESH_SIMPLIFY_DEFAULT,
+  getPipelineSafeMeshGenerationDefaults,
 } from '../library/aiModelsCatalog.js';
 import {
   AUTO_RIG_MODES,
@@ -162,10 +167,12 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const [newTaskImages, setNewTaskImages] = useState([]);
   const [primaryImageIndex, setPrimaryImageIndex] = useState(0);
   const [newTaskModel, setNewTaskModel] = useState(() => getDefaultModelForFeature('text-to-3d'));
-  const [taskOptions, setTaskOptions] = useState({
+  const [taskOptions, setTaskOptions] = useState(() => {
+    const pipeline = getPipelineSafeMeshGenerationDefaults();
+    return {
     texture_resolution: 1024,
     output_format: 'glb',
-    mesh_simplify: 0.95,
+    mesh_simplify: pipeline.mesh_simplify,
     rig_mode: AUTO_RIG_MODES.FULL,
     humanoid_template_id: DEFAULT_HUMANOID_TEMPLATE_ID,
     creature_template_id: DEFAULT_CREATURE_TEMPLATE_ID,
@@ -177,9 +184,9 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     metric_mode: 'auto_bbox',
     metric_true_meters: '',
     metric_recon_length: '',
+    refine_to_3dgs: false,
     train_3dgs: false,
     train_3dgs_steps: 7000,
-    refine_to_3dgs: false,
     image_width: 1024,
     image_height: 1024,
     text_to_image_prompt_options: { ...DEFAULT_TEXT_TO_IMAGE_PROMPT_OPTIONS },
@@ -188,7 +195,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     target_prompt: '',
     mask_bbox_center: '0, 1, 0',
     mask_bbox_dimensions: '0.5, 0.5, 0.5',
-    model_parameters: {},
+    model_parameters: { ...pipeline.model_parameters },
+  };
   });
   const [meshEditSourceImage, setMeshEditSourceImage] = useState(null);
   const [meshEditMaskImage, setMeshEditMaskImage] = useState(null);
@@ -204,9 +212,10 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const [rigPanelPipeline, setRigPanelPipeline] = useState('skintokens');
   const [availableModels, setAvailableModels] = useState(ALL_MODELS);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isCompletedExpanded, setIsCompletedExpanded] = useState(true);
   const cardHeaderRef = useRef(null);
   const newTaskFormRef = useRef(null);
-  const { currentModel } = useScene();
+  const { currentModel, clearModel } = useScene();
   const { deleteTask, syncTasksFromApi, clearCompletedTasks, getApiEndpoint } = useTask();
   const apiEndpoint = getApiEndpoint();
   const {
@@ -251,6 +260,9 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       objectNameTouchedRef.current = false;
     }
   };
+
+  /** When true, skip the auto-rigging default useEffect (Rig panel already set model/mode). */
+  const skipAutoRigDefaultsRef = useRef(false);
 
   const avatarSdkReady = Boolean(
     import.meta.env.VITE_AVATARSDK_CLIENT_ID && import.meta.env.VITE_AVATARSDK_CLIENT_SECRET
@@ -332,6 +344,11 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   
   // Update model + output_format when task type changes (mesh-gen = glb, auto-rig = fbx)
   useEffect(() => {
+    // Rig panel sets model + rig_mode explicitly — don't wipe them on open.
+    if (newTaskType === 'auto-rigging' && skipAutoRigDefaultsRef.current) {
+      skipAutoRigDefaultsRef.current = false;
+      return;
+    }
     const defaultModel = getDefaultModelForTaskType(newTaskType);
     if (defaultModel) {
       setNewTaskModel(defaultModel);
@@ -355,6 +372,19 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
         include_splat_preview: prev.include_splat_preview ?? false,
       }));
       setNewTaskModel(resolveMeshModelForAvatarFromImage(defaultModel));
+    } else if (newTaskType === 'mesh-retopology') {
+      setTaskOptions((prev) => ({
+        ...prev,
+        output_format: 'glb',
+        target_face_count: prev.target_face_count ?? PIPELINE_MESH_DECIMATION_TARGET,
+        model_parameters: {
+          ...(prev.model_parameters || {}),
+          target_face_count:
+            prev.model_parameters?.target_face_count ??
+            prev.model_parameters?.decimation_target ??
+            PIPELINE_MESH_DECIMATION_TARGET,
+        },
+      }));
     } else if (newTaskType === 'image-to-splat') {
       setTaskOptions((prev) => ({ ...prev, output_format: 'ply' }));
     } else if (newTaskType === 'image-to-raw-mesh') {
@@ -728,6 +758,13 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
           taskOptions.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID;
         options.output_format = 'glb';
       }
+      if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+        options.appearance_slot =
+          taskOptions.appearance_slot ||
+          taskOptions.model_parameters?.appearance_slot ||
+          'Legs';
+        options.output_format = 'glb';
+      }
     }
     if (newTaskType === 'avatar-from-image') {
       options.humanoid_template_id =
@@ -736,6 +773,30 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     }
     if (newTaskType === 'mesh-segmentation' && taskOptions.num_parts) {
       options.num_parts = Number(taskOptions.num_parts) || 8;
+    }
+    if (newTaskType === 'mesh-retopology') {
+      options.output_format = taskOptions.output_format || 'glb';
+      const faceTarget =
+        Number(taskOptions.target_face_count) ||
+        Number(taskOptions.model_parameters?.target_face_count) ||
+        Number(taskOptions.model_parameters?.decimation_target) ||
+        PIPELINE_MESH_DECIMATION_TARGET;
+      options.target_face_count = faceTarget;
+      if (newTaskModel === 'instant_meshes_retopology') {
+        const ok = window.confirm(
+          'Instant Meshes rebuilds topology and often leaves holes on AIGC characters (capes, fingers, wings). Textures are also lost.\n\n' +
+            'Prefer “Mesh Decimate” to reduce triangles while keeping a complete model.\n\nContinue with Instant Meshes anyway?',
+        );
+        if (!ok) return;
+      }
+      if (
+        newTaskModel === 'autoremesher_retopology' &&
+        !window.confirm(
+          'AutoRemesher remeshes the surface — original textures/UVs will not transfer.\n\nPrefer Mesh Decimate if you need textures. Continue?',
+        )
+      ) {
+        return;
+      }
     }
     if (newTaskType === 'mesh-editing-text' || newTaskType === 'mesh-editing-image') {
       options.source_prompt = taskOptions.source_prompt?.trim() || newTaskPrompt.trim();
@@ -769,10 +830,10 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     }
     if (newTaskType === 'environment-scan') {
       options.model_preference = newTaskModel || 'lingbot_map_environment_scan';
-      options.train_3dgs = Boolean(taskOptions.train_3dgs);
-      options.train_3dgs_steps = Number(taskOptions.train_3dgs_steps) || 7000;
       options.world_name = objectName;
       options.refine_to_3dgs = Boolean(taskOptions.refine_to_3dgs);
+      options.train_3dgs = Boolean(taskOptions.train_3dgs);
+      options.train_3dgs_steps = Number(taskOptions.train_3dgs_steps) || 7000;
       const trueMeters = Number(taskOptions.metric_true_meters);
       const mode = taskOptions.metric_mode || 'auto_bbox';
       const metric = {
@@ -795,7 +856,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       options.output_format = taskOptions.output_format === 'webp' ? 'webp' : 'png';
     }
     const modelsForTask = getModelsForTaskType(newTaskType);
-    if (modelsForTask.length > 0 && newTaskModel) {
+    // Auto-rigging already resolved model_preference above — don't clobber UniRig/template.
+    if (newTaskType !== 'auto-rigging' && modelsForTask.length > 0 && newTaskModel) {
       options.model_preference = newTaskModel;
     }
 
@@ -1028,6 +1090,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
       kind,
       { objectName: carried },
     );
+    skipAutoRigDefaultsRef.current = true;
     dispatchLoadTask(task, 'useForAutoRig');
     openNewTaskForm('auto-rigging', carried);
     applyCarriedObjectName(carried, { force: true });
@@ -1056,6 +1119,92 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     }, 0);
   };
 
+  /**
+   * One-click auto-rig from a completed mesh task — downloads the result GLB
+   * (no viewport race) and starts SkinTokens / UniRig immediately.
+   */
+  const handleStartAutoRigFromCompletedTask = async (task, event, pipelineKind) => {
+    event?.stopPropagation?.();
+    event?.preventDefault?.();
+    if (!isApiConnected) {
+      alert('⚠️ DGX API is not connected.');
+      return;
+    }
+    const carried = resolveCarriedObjectName(task) || lastObjectNameRef.current;
+    if (!normalizeObjectName(carried)) {
+      alert('⚠️ Enter / carry an object name before auto-rigging.');
+      return;
+    }
+    const pipelines = recommendedRigPipelinesForTask(task);
+    const kind =
+      pipelineKind && pipelines.includes(pipelineKind) ? pipelineKind : pipelines[0] || 'skintokens';
+    const { modelPreference, rigMode, appearance_slot } = autoRigSelectionForPipelineKind(
+      kind,
+      { objectName: carried },
+    );
+    const loadPayload = normalizeTaskLoadPayload(task);
+    const meshUrl = getTaskResultMeshUrl(loadPayload) || getTaskResultModelUrl(loadPayload);
+    if (!meshUrl) {
+      alert('⚠️ No mesh URL on this completed task.');
+      return;
+    }
+    setRigPanelTaskId(null);
+    try {
+      const abs = resolveTaskModelUrl(meshUrl, apiEndpoint);
+      const response = await fetch(abs, { headers: get3daigcAuthHeaders() });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const sourceMeshFile = new File([blob], `${slugifyObjectName(carried, 'mesh')}.glb`, {
+        type: blob.type || 'model/gltf-binary',
+      });
+
+      if (kind === 'skintokens') {
+        try {
+          const { prepareGlbForApiUpload } = await import('../library/glbCompress.js');
+          await prepareGlbForApiUpload(await sourceMeshFile.arrayBuffer(), {
+            maxVertices: API_MAX_MESH_VERTICES,
+            maxFaces: API_MAX_MESH_VERTICES,
+            preserveTextures: true,
+            allowPositionOnlyFallback: false,
+          });
+        } catch (prepError) {
+          const detail = prepError?.message || String(prepError);
+          alert(
+            `⚠️ This mesh is too dense to auto-rig with textures.\n\n${detail}\n\n` +
+              'Re-run Image-to-3D with decimation target ≤210,000 faces (the API upload cap). ' +
+              'Do not use Instant Meshes for characters — it often leaves holes. Prefer Mesh Decimate.',
+          );
+          return;
+        }
+      }
+
+      dispatchLoadTask(task, 'startAutoRig');
+      const options = {
+        object_name: carried,
+        model_preference: resolveAutoRigModelForTask(rigMode, modelPreference),
+        rig_mode: rigMode,
+        output_format: getDefaultAutoRigOutputFormat(modelPreference, rigMode),
+        sourceMeshFile,
+      };
+      if (rigMode === AUTO_RIG_MODES.TEMPLATE) {
+        options.humanoid_template_id =
+          taskOptions.humanoid_template_id ?? DEFAULT_HUMANOID_TEMPLATE_ID;
+      }
+      if (rigMode === AUTO_RIG_MODES.CREATURE_TEMPLATE) {
+        options.creature_template_id =
+          taskOptions.creature_template_id ?? DEFAULT_CREATURE_TEMPLATE_ID;
+      }
+      if (rigMode === AUTO_RIG_MODES.APPEARANCE_COMPONENT) {
+        options.appearance_slot = appearance_slot || 'Legs';
+      }
+      lastObjectNameRef.current = carried;
+      await onAITask('auto-rigging', `Auto-rig ${carried}`, null, options);
+    } catch (error) {
+      console.error('TaskManager: start auto-rig from completed task failed', error);
+      alert(`Auto-rigging request failed: ${error?.message || error}`);
+    }
+  };
+
   const openCompletedRigPanel = (task, event) => {
     event?.stopPropagation?.();
     event?.preventDefault?.();
@@ -1067,7 +1216,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
   const PIPELINE_LABELS = {
     skintokens: 'SkinTokens — biped / character',
     creature: 'Creature template — fox / quadruped',
-    template: 'UniRig template VRM — humanoid',
+    template: 'UniRig → template.vrm fit (Blender; not UniRig ML)',
+    appearance: 'Appearance fit — clothing / wearable',
   };
 
   const handleDownloadTaskImage = async (task, event) => {
@@ -1572,27 +1722,6 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                     />
                   )}
 
-                {task.status === 'completed' &&
-                  loadPayload &&
-                  !isTextToImageTaskResult(loadPayload) &&
-                  !isTextToMotionTaskResult(loadPayload) &&
-                  !isWorldLayerTaskResult(loadPayload) &&
-                  (task.type === 'image-to-3d' ||
-                    task.type === 'image-to-raw-mesh' ||
-                    task.type === 'text-to-3d' ||
-                    task.type === 'avatar-from-image' ||
-                    task.type === 'auto-rigging' ||
-                    getTaskResultMeshUrl(loadPayload) ||
-                    getTaskResultModelUrl(loadPayload)) && (
-                    <TaskMeshPreview
-                      meshUrl={
-                        getTaskResultMeshUrl(loadPayload) || getTaskResultModelUrl(loadPayload)
-                      }
-                      apiEndpoint={apiEndpoint}
-                      autoLoad3d
-                    />
-                  )}
-
                 {rigPanelTaskId === task.id &&
                   task.status === 'completed' &&
                   (task.type === 'image-to-3d' ||
@@ -1643,10 +1772,28 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                           type="button"
                           className="primary"
                           onClick={(event) =>
-                            handleUseMeshForAutoRigging(task, event, rigPanelPipeline)
+                            void handleStartAutoRigFromCompletedTask(task, event, rigPanelPipeline)
                           }
                         >
-                          Load &amp; open Auto Rigging
+                          Start Auto Rigging
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) =>
+                            handleUseMeshForAutoRigging(task, event, rigPanelPipeline)
+                          }
+                          style={{
+                            padding: '0.3rem 0.45rem',
+                            fontSize: '0.65rem',
+                            background: '#1e3a5f',
+                            color: '#eee',
+                            border: '1px solid #3a4660',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                          }}
+                          title="Load mesh into viewport and open the Auto Rigging form"
+                        >
+                          Open form…
                         </button>
                         <button
                           type="button"
@@ -1668,6 +1815,27 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                         </button>
                       </div>
                     </div>
+                  )}
+
+                {task.status === 'completed' &&
+                  loadPayload &&
+                  !isTextToImageTaskResult(loadPayload) &&
+                  !isTextToMotionTaskResult(loadPayload) &&
+                  !isWorldLayerTaskResult(loadPayload) &&
+                  (task.type === 'image-to-3d' ||
+                    task.type === 'image-to-raw-mesh' ||
+                    task.type === 'text-to-3d' ||
+                    task.type === 'avatar-from-image' ||
+                    task.type === 'auto-rigging' ||
+                    getTaskResultMeshUrl(loadPayload) ||
+                    getTaskResultModelUrl(loadPayload)) && (
+                    <TaskMeshPreview
+                      meshUrl={
+                        getTaskResultMeshUrl(loadPayload) || getTaskResultModelUrl(loadPayload)
+                      }
+                      apiEndpoint={apiEndpoint}
+                      autoLoad3d
+                    />
                   )}
 
                 {isViewportFailed && viewportFailedMessage ? (
@@ -1758,12 +1926,29 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
               >
                 {isSyncingTasks ? 'Sync…' : 'Sync DGX'}
               </button>
-              <button 
+              <button
                 className="btn btn-secondary"
                 onClick={clearCompletedTasks}
+                title="Remove completed tasks from this list"
               >
-                Clear
+                Clear done
               </button>
+              {currentModel ? (
+                <button
+                  className="btn btn-secondary"
+                  data-testid="task-manager-clear-model-btn"
+                  onClick={() => {
+                    clearModel();
+                    setViewportActiveJobId(null);
+                    setViewportLoadingJobId(null);
+                    setViewportFailedJobId(null);
+                    setViewportFailedMessage(null);
+                  }}
+                  title="Remove the loaded model from the viewport"
+                >
+                  Clear
+                </button>
+              ) : null}
               <button
                 className="btn btn-secondary"
                 onClick={(event) => void handleOpenMetaverseBrowser(event)}
@@ -2068,7 +2253,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                           Creature template — fox / quadruped (Mesh2Motion)
                         </option>
                         <option value="template">
-                          UniRig template VRM — humanoid morph-ready skeleton
+                          UniRig template.vrm fit — Blender humanoid (not UniRig ML / full)
                         </option>
                       </select>
                       <p style={{ fontSize: '0.55rem', color: '#8f8', margin: '0.25rem 0 0' }}>
@@ -2141,6 +2326,44 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {newTaskType === 'mesh-retopology' && (
+                <div className="mb-1.5">
+                  <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem', color: '#ccc' }}>
+                    Target triangles (decimate / face budget)
+                  </label>
+                  <input
+                    type="number"
+                    min={1000}
+                    max={PIPELINE_MESH_DECIMATION_MAX}
+                    step={1000}
+                    value={
+                      taskOptions.target_face_count ??
+                      taskOptions.model_parameters?.target_face_count ??
+                      PIPELINE_MESH_DECIMATION_TARGET
+                    }
+                    onChange={(e) => {
+                      const n = Number(e.target.value) || PIPELINE_MESH_DECIMATION_TARGET;
+                      setTaskOptions((prev) => ({
+                        ...prev,
+                        target_face_count: n,
+                        output_format: prev.output_format || 'glb',
+                        model_parameters: {
+                          ...(prev.model_parameters || {}),
+                          target_face_count: n,
+                        },
+                      }));
+                    }}
+                    className="input w-full"
+                    style={{ padding: '0.375rem', fontSize: '0.65rem' }}
+                  />
+                  <p style={{ fontSize: '0.55rem', color: '#888', margin: '0.25rem 0 0' }}>
+                    Default {PIPELINE_MESH_DECIMATION_TARGET.toLocaleString()} triangles (API cap).
+                    Use <strong>Mesh Decimate</strong> for characters — Instant Meshes leaves holes and
+                    strips textures.
+                  </p>
                 </div>
               )}
 
@@ -2289,8 +2512,9 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                   </label>
                   <input
                     type="number"
-                    min={0.01}
+                    min={0.001}
                     step="any"
+                    inputMode="decimal"
                     className="input w-full"
                     value={taskOptions.metric_true_meters}
                     onChange={(e) =>
@@ -2311,6 +2535,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                         type="number"
                         min={0.0001}
                         step="any"
+                        inputMode="decimal"
                         className="input w-full"
                         value={taskOptions.metric_recon_length}
                         onChange={(e) =>
@@ -2347,15 +2572,7 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                     />
                     Refine to 3DGS (Phase A — Spark Gaussians from points)
                   </label>
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      marginTop: '0.35rem',
-                      fontSize: '0.65rem',
-                    }}
-                  >
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem' }}>
                     <input
                       type="checkbox"
                       checked={Boolean(taskOptions.train_3dgs)}
@@ -2363,21 +2580,20 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                         setTaskOptions((prev) => ({
                           ...prev,
                           train_3dgs: e.target.checked,
+                          refine_to_3dgs: e.target.checked ? true : prev.refine_to_3dgs,
                         }))
                       }
                       data-testid="environment-scan-train-3dgs"
                     />
-                    Phase B train (gsplat — densify off; 7–10k steps)
+                    Train 3DGS (Phase B — gsplat, sharper; long job)
                   </label>
                   {Boolean(taskOptions.train_3dgs) && (
-                    <div style={{ marginTop: '0.35rem' }}>
-                      <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem', color: '#ccc' }}>
-                        Phase B steps
-                      </label>
+                    <label style={{ display: 'block', marginTop: '0.35rem', fontSize: '0.55rem', color: '#aaa' }}>
+                      Steps
                       <input
                         type="number"
-                        min={1000}
-                        max={30000}
+                        min={100}
+                        max={50000}
                         step={500}
                         value={Number(taskOptions.train_3dgs_steps) || 7000}
                         onChange={(e) =>
@@ -2386,17 +2602,16 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                             train_3dgs_steps: Number(e.target.value) || 7000,
                           }))
                         }
-                        className="input w-full"
-                        style={{ padding: '0.375rem', fontSize: '0.65rem' }}
                         data-testid="environment-scan-train-3dgs-steps"
+                        style={{ marginLeft: '0.35rem', width: '5rem', fontSize: '0.55rem' }}
                       />
-                    </div>
+                    </label>
                   )}
                   <p style={{ fontSize: '0.55rem', color: '#888', margin: '0.25rem 0 0' }}>
                     Best 1:1: tape a door/wall, use reference_length with recon points. auto_bbox is
-                    approximate. Phase B is photometric (sharper) and can take a long time on a full
-                    walk. Docs: 3DAIGC-API LINGBOT_MAP_ENVIRONMENT_SCAN.md. Does not change Image to
-                    World (TripoSplat).
+                    approximate. Phase A is fast isotropic Gaussians; Phase B gsplat train is
+                    photometric (sharper) and can take a long time on a full walk. Docs:
+                    LINGBOT_MAP_ENVIRONMENT_SCAN.md. Does not change Image to World (TripoSplat).
                   </p>
                 </div>
               )}
@@ -2690,16 +2905,28 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
               ) : null}
               <div className="task-completed-panel">
                 <div className="task-completed-header">
-                  Completed
+                  <button
+                    type="button"
+                    className="expand-icon-button"
+                    onClick={() => setIsCompletedExpanded((prev) => !prev)}
+                    title={isCompletedExpanded ? 'Collapse completed tasks' : 'Expand completed tasks'}
+                    aria-expanded={isCompletedExpanded}
+                    data-testid="task-completed-expand-btn"
+                  >
+                    {isCompletedExpanded ? '▼' : '▶'}
+                  </button>
+                  <span className="task-completed-title">Completed</span>
                   <span className="task-completed-count">({completedTasks.length})</span>
                 </div>
-                <div className="task-completed-scroll">
-                  {completedTasks.length === 0 ? (
-                    <p className="task-list-empty task-list-empty--inset">No completed tasks</p>
-                  ) : (
-                    completedTasks.map((task) => renderTaskItem(task))
-                  )}
-                </div>
+                {isCompletedExpanded ? (
+                  <div className="task-completed-scroll">
+                    {completedTasks.length === 0 ? (
+                      <p className="task-list-empty task-list-empty--inset">No completed tasks</p>
+                    ) : (
+                      completedTasks.map((task) => renderTaskItem(task))
+                    )}
+                  </div>
+                ) : null}
               </div>
             </>
           )}
