@@ -45,7 +45,7 @@ Task types in the **New Task** panel (`TaskManager.jsx`), backed by [3DAIGC-API]
 | Image to Raw Mesh | `image_to_raw_mesh` | Hunyuan3D-2.1, UltraShape |
 | Mesh painting (text / image) | `text_mesh_painting` / `image_mesh_painting` | TRELLIS.2, Hunyuan |
 | Mesh segmentation | `mesh_segmentation` | P3-SAM |
-| Mesh retopology | `mesh_retopology` | Instant Meshes |
+| Mesh retopology | `mesh_retopology` | AutoRemesher (default), Instant Meshes, Trimesh Decimate |
 | Mesh UV unwrapping | `uv_unwrapping` | xatlas |
 | Mesh editing (text / image) | `text_mesh_editing` / `image_mesh_editing` | VoxHammer |
 | Auto rigging | `auto_rig` | **SkinTokens** (full GLB, recommended), UniRig (template VRM) |
@@ -75,23 +75,27 @@ Gaussian splats live in **this app** — same `SceneManager` viewport as VRM and
 | **1 photo** → splat | Task Manager multi-select (primary photo) | **TripoSplat** |
 | **2+ photos** → splat | Same; mark best front view as **Primary** | **WorldMirror 2.0** (COLMAP fallback at 3+) |
 | World package load | **World Library** + `worldSceneLoader.js` | `POST /api/v1/world-generation/image-to-world` (`opennexus_image_to_world`) |
+| **Walk / XR environment scan** | Task Manager **Environment Scan** | `POST /api/v1/world-generation/environment-scan` (LingBot-Map) |
+| Env-scan Phase A → Spark | Auto when `refine_to_3dgs` | Isotropic Gaussians from point cloud |
+| Env-scan Phase B train | Separate or `train_3dgs: true` | `POST /train-3dgs` / `env_scan_gsplat_train` (7–10k steps) |
 | Avatar + optional splat | **Avatar from Image** + “Gaussian splat preview” checkbox | TRELLIS.2 mesh + UniRig template rig + optional TripoSplat |
 | Multi-image uploads | `multiImageInput.js` on splat / world / avatar tasks | `image_file_id` + `reference_image_file_ids` (up to 8 total) |
 
-Task types: **Image to Gaussian Splat**, **Image to World (splat + props)** in the New Task panel (`TaskManager.jsx`).
+Task types: **Image to Gaussian Splat**, **Image to World (splat + props)**, **Environment Scan** in the New Task panel (`TaskManager.jsx`).
 
 ### What's not done yet
 
 - **Splat-only world RP1** — World Library **RP1** needs mesh props in the manifest; pure Gaussian environments need a prop-generation path for OMB publish
+- **Env-scan x402 SKUs** — Phase A vs Phase B billing + frame-budget upsell (monetization roadmap v3.3.7)
 - **Gaussian-VRM / RGBAvatar body pipelines** — scan-based full-body avatars and highest-fidelity head attachment; separate from viewport TripoSplat preview (not the same code path as `image-to-splat`).
 
 ### Where it lives (architecture)
 
 ```text
-[DGX 3DAIGC-API]  TripoSplat, WorldMirror/COLMAP, image-to-world, avatar mesh/rig jobs
+[DGX 3DAIGC-API]  TripoSplat, WorldMirror/COLMAP, image-to-world, LingBot env-scan A/B, avatar mesh/rig jobs
        ↓
 [OpenNexus3DStudio /]  SceneManager — one renderer, one WebXR session, VRM + tools
-       ↓                  SparkRenderer + SplatMesh in the same scene as avatars
+       ↓                  SparkRenderer + SplatMesh (LingBot: orientationMode none)
 [OMB / RP1 publish]    spatial-fabric validate + MSF Scene Assembler (mesh props)
 ```
 
@@ -102,7 +106,8 @@ Task types: **Image to Gaussian Splat**, **Image to World (splat + props)** in t
 - [Multi-image splat & avatar roadmap](docs/MULTI_IMAGE_SPLAT_ROADMAP.md) — 1 vs 2–8 photo routing
 - [NVIDIA XR AI + 3DAIGC (DGX)](docs/NVIDIA_XR_AI_INTEGRATION.md) — voice VLM → mesh jobs on Galaxy XR
 - [Dev machine topology](docs/DEV_MACHINE_TOPOLOGY.md) — Surface + DGX Spark roles, incremental sync, Galaxy XR URLs
-- [World package format](docs/WORLD_PACKAGE.md) — splats, props, Redis rehydrate for image-to-world jobs
+- [World package format](docs/WORLD_PACKAGE.md) — splats, props, env-scan metric calibration
+- [LingBot environment scan (API)](https://github.com/AlfaOmegaGrafx/3DAIGC-API/blob/main/docs/LINGBOT_MAP_ENVIRONMENT_SCAN.md) — Phase A/B, gravity, door metric
 - [Spatial fabric / RP1](docs/SPATIAL_FABRIC_INTEGRATION.md) — Task Manager vs World Library publish
 - [Phygital NFC roadmap](docs/PHYGITAL_NFC_APPAREL_ROADMAP.md) — mock `/verify/:serialId` (Phase 0)
 - [Avatar pipeline (client)](docs/AVATAR_PIPELINE.md) — avatar-from-image, optional splat preview, Arc2Avatar direction
@@ -128,7 +133,7 @@ Task types: **Image to Gaussian Splat**, **Image to World (splat + props)** in t
   - **WebXR expression tracking** when the browser exposes `expression-tracking` (VRM blink / mouth)
   - **Native face relay** when it does not — companion APK + dev-server ingest (see [OpenXR face tracking](docs/OPENXR_FACE_TRACKING_ANDROID_XR.md))
 - **IWSDK immersive lab** (`/xr`): Meta [Immersive Web SDK](https://iwsdk.dev/) route for locomotion, grab, and spatial interaction experiments — separate from main VRM authoring; validated on **Galaxy XR** at `https://<your-PC-LAN-IP>:3000/xr` ([integration guide](docs/IWSDK_INTEGRATION.md))
-- **Gaussian splats (3DGS)**: Spark.js splat rendering in the main viewport (`SceneManager`); TripoSplat, WorldMirror, COLMAP, and world packages from **3DAIGC-API**; **WebXR grab + locomotion on `/`** (distance/proximity grab, thumbstick move/turn) with worlds + VRM in one session — see [Gaussian splats (3DGS)](#gaussian-splats-3dgs)
+- **Gaussian splats (3DGS)**: Spark.js splat rendering in the main viewport (`SceneManager`); TripoSplat, WorldMirror, COLMAP, **LingBot Environment Scan** (Phase A/B), and world packages from **3DAIGC-API**; **WebXR grab + locomotion on `/`** (distance/proximity grab, thumbstick move/turn) with worlds + VRM in one session — see [Gaussian splats (3DGS)](#gaussian-splats-3dgs)
 - **Spatial fabric (RP1 / OMB)**: **Publish RP1** on completed mesh tasks; **Validate OMB tier** on GLB export; explore in Open Metaverse Browser–compatible fabrics — [`docs/SPATIAL_FABRIC_INTEGRATION.md`](docs/SPATIAL_FABRIC_INTEGRATION.md)
 - **XR AI panel**: `XrAiPanel` + `xrHubConfig.js` — in-app hub status and handoff to DGX **xr-ai** / MCP (parallel to voice-only stack)
 - **WebGPU Rendering**: Automatic WebGPU detection with WebGL fallback

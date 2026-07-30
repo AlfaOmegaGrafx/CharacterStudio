@@ -607,6 +607,27 @@ export function shouldLoadEnvironmentAsPointCloud(manifest) {
 }
 
 /**
+ * LingBot env-scan Gaussians are gravity-aligned Y-up — never TripoSplat X-flip.
+ * Locked with Phase A/B orientation protection.
+ * @param {import('./worldPackage.js').WorldPackage|Record<string, unknown>|null|undefined} manifest
+ */
+export function isLingbotGravityAlignedGaussian(manifest) {
+  const meta = manifest?.metadata || {};
+  const pipeline = String(meta.pipeline || '').toLowerCase();
+  const source = String(meta.source_geometry || '').toLowerCase();
+  const phase = String(meta.gaussian_phase || '').toLowerCase();
+  const gravityMethod = String(meta.gravity_align?.method || '').toLowerCase();
+  if (pipeline.includes('lingbot')) return true;
+  if (source.includes('gaussian_from_point')) return true;
+  if (source.includes('gaussian_gsplat')) return true;
+  if (phase.startsWith('a_') || phase.startsWith('b_')) return true;
+  if (gravityMethod.includes('floor_ransac') || gravityMethod.includes('x_mirror')) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * @param {import('./sceneManager.js').SceneManager} sceneManager
  * @param {string} url
  * @param {object} [options]
@@ -632,10 +653,7 @@ export async function loadWorldEnvironmentSplat(sceneManager, url, options = {})
     // LingBot / gravity-aligned env-scan Gaussians are already Y-up — do not apply
     // TripoSplat's 180° X flip (that was scrambling Phase A world packages).
     const manifest = options.manifest || sceneManager.activeWorldManifest;
-    const pipeline = String(manifest?.metadata?.pipeline || '').toLowerCase();
-    const source = String(manifest?.metadata?.source_geometry || '').toLowerCase();
-    const isLingbotGaussian =
-      pipeline.includes('lingbot') || source.includes('gaussian_from_point');
+    const isLingbotGaussian = isLingbotGravityAlignedGaussian(manifest);
     const splatLoadOpts = {
       fromAigc: options.fromAigc !== false,
       orientationMode:
@@ -654,7 +672,11 @@ export async function loadWorldEnvironmentSplat(sceneManager, url, options = {})
     ) {
       applySplatOrientationCorrection(splat, 'z-up-to-y-up');
     }
-    anchorObjectBottomToFloor(splat);
+    // Gravity-aligned LingBot worlds already seat on Y=0 — do not re-lift from
+    // floater bboxes (Phase B densify outliers would hoist the whole room).
+    if (!isLingbotGaussian) {
+      anchorObjectBottomToFloor(splat);
+    }
     sceneManager.worldRoot.add(splat);
     sceneManager.worldEnvironmentSplat = splat;
 

@@ -177,6 +177,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     metric_mode: 'auto_bbox',
     metric_true_meters: '',
     metric_recon_length: '',
+    train_3dgs: false,
+    train_3dgs_steps: 7000,
     refine_to_3dgs: false,
     image_width: 1024,
     image_height: 1024,
@@ -767,6 +769,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
     }
     if (newTaskType === 'environment-scan') {
       options.model_preference = newTaskModel || 'lingbot_map_environment_scan';
+      options.train_3dgs = Boolean(taskOptions.train_3dgs);
+      options.train_3dgs_steps = Number(taskOptions.train_3dgs_steps) || 7000;
       options.world_name = objectName;
       options.refine_to_3dgs = Boolean(taskOptions.refine_to_3dgs);
       const trueMeters = Number(taskOptions.metric_true_meters);
@@ -2286,13 +2290,14 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                   <input
                     type="number"
                     min={0.01}
-                    step={0.01}
+                    step="any"
                     className="input w-full"
                     value={taskOptions.metric_true_meters}
                     onChange={(e) =>
                       setTaskOptions((prev) => ({ ...prev, metric_true_meters: e.target.value }))
                     }
-                    placeholder="e.g. 0.91 door width, or 4.2 room diagonal"
+                    placeholder="e.g. 0.762 (30 in door), or 4.2 room diagonal"
+                    title="Millimeter precision OK — 30 in door = 0.762 m"
                     data-testid="environment-scan-true-meters"
                     style={{ padding: '0.375rem', fontSize: '0.65rem', marginBottom: '0.5rem' }}
                   />
@@ -2314,7 +2319,8 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                             metric_recon_length: e.target.value,
                           }))
                         }
-                        placeholder="Distance between the same two points in recon space"
+                        placeholder="Same feature in recon units (Office door ≈ 0.47)"
+                        title="Use reference_length mode for door width; not player_height"
                         style={{ padding: '0.375rem', fontSize: '0.65rem', marginBottom: '0.5rem' }}
                       />
                     </>
@@ -2341,11 +2347,56 @@ const TaskManager = ({ tasks, onAITask, isApiConnected }) => {
                     />
                     Refine to 3DGS (Phase A — Spark Gaussians from points)
                   </label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      marginTop: '0.35rem',
+                      fontSize: '0.65rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(taskOptions.train_3dgs)}
+                      onChange={(e) =>
+                        setTaskOptions((prev) => ({
+                          ...prev,
+                          train_3dgs: e.target.checked,
+                        }))
+                      }
+                      data-testid="environment-scan-train-3dgs"
+                    />
+                    Phase B train (gsplat — densify off; 7–10k steps)
+                  </label>
+                  {Boolean(taskOptions.train_3dgs) && (
+                    <div style={{ marginTop: '0.35rem' }}>
+                      <label style={{ fontSize: '0.65rem', display: 'block', marginBottom: '0.25rem', color: '#ccc' }}>
+                        Phase B steps
+                      </label>
+                      <input
+                        type="number"
+                        min={1000}
+                        max={30000}
+                        step={500}
+                        value={Number(taskOptions.train_3dgs_steps) || 7000}
+                        onChange={(e) =>
+                          setTaskOptions((prev) => ({
+                            ...prev,
+                            train_3dgs_steps: Number(e.target.value) || 7000,
+                          }))
+                        }
+                        className="input w-full"
+                        style={{ padding: '0.375rem', fontSize: '0.65rem' }}
+                        data-testid="environment-scan-train-3dgs-steps"
+                      />
+                    </div>
+                  )}
                   <p style={{ fontSize: '0.55rem', color: '#888', margin: '0.25rem 0 0' }}>
                     Best 1:1: tape a door/wall, use reference_length with recon points. auto_bbox is
-                    approximate. Phase A is fast isotropic Gaussians; Phase B gsplat train is
-                    documented in LINGBOT_MAP_ENVIRONMENT_SCAN.md. Does not change Image to World
-                    (TripoSplat).
+                    approximate. Phase B is photometric (sharper) and can take a long time on a full
+                    walk. Docs: 3DAIGC-API LINGBOT_MAP_ENVIRONMENT_SCAN.md. Does not change Image to
+                    World (TripoSplat).
                   </p>
                 </div>
               )}
