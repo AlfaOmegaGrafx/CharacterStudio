@@ -65,11 +65,6 @@ const Shared3DViewer = ({
       setIsInitialized(true);
       startRenderLoop();
 
-      // Setup stats monitoring if enabled
-      if (showStats) {
-        startStatsMonitoring();
-      }
-
     } catch (err) {
       console.error('Failed to initialize 3D viewer:', err);
       setError(err.message);
@@ -77,7 +72,7 @@ const Shared3DViewer = ({
     } finally {
       setIsLoading(false);
     }
-  }, [initializeScene, startRenderLoop, isInitialized, showStats, onModelError]);
+  }, [initializeScene, startRenderLoop, isInitialized, onModelError]);
 
   // Load model based on mode
   const loadModelIntoViewer = useCallback(async (modelToLoad) => {
@@ -232,19 +227,35 @@ const Shared3DViewer = ({
 
   // Start stats monitoring
   const startStatsMonitoring = useCallback(() => {
-    const updateStats = () => {
-      if (sceneManager && sceneManager.renderer) {
-        const info = sceneManager.renderer.info;
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let animationId = 0;
+    let stopped = false;
+
+    const updateStats = (currentTime) => {
+      if (stopped) return;
+      frameCount += 1;
+      if (sceneManager && currentTime - lastTime >= 1000) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+        const modelStats =
+          typeof sceneManager.getViewportModelStats === 'function'
+            ? sceneManager.getViewportModelStats()
+            : { triangles: 0, drawCalls: 0 };
         setViewerStats({
-          fps: Math.round(1000 / (performance.now() - (window.lastFrameTime || performance.now()))),
-          triangles: info.render.triangles,
-          drawCalls: info.render.calls
+          fps,
+          triangles: modelStats.triangles,
+          drawCalls: modelStats.drawCalls,
         });
-        window.lastFrameTime = performance.now();
+        frameCount = 0;
+        lastTime = currentTime;
       }
-      requestAnimationFrame(updateStats);
+      animationId = requestAnimationFrame(updateStats);
     };
-    updateStats();
+    animationId = requestAnimationFrame(updateStats);
+    return () => {
+      stopped = true;
+      if (animationId) cancelAnimationFrame(animationId);
+    };
   }, [sceneManager]);
 
   // Handle render mode changes
@@ -258,6 +269,12 @@ const Shared3DViewer = ({
   useEffect(() => {
     initializeViewer();
   }, [initializeViewer]);
+
+  // Viewport-model-scoped stats (not whole-scene renderer.info)
+  useEffect(() => {
+    if (!showStats || !isInitialized || !sceneManager) return undefined;
+    return startStatsMonitoring();
+  }, [showStats, isInitialized, sceneManager, startStatsMonitoring]);
 
   // Load model when it changes
   useEffect(() => {

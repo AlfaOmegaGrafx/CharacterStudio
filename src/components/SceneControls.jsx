@@ -191,8 +191,8 @@ export const SceneControls = ({ sceneManager, onRenderModeChange, onLightingChan
               <label>Intensity: {lightingIntensity.toFixed(1)}x</label>
               <input
                 type="range"
-                min="0.1"
-                max="3.0"
+                min="0"
+                max="2.0"
                 step="0.1"
                 value={lightingIntensity}
                 onChange={(e) => handleLightingIntensityChange(parseFloat(e.target.value))}
@@ -237,8 +237,8 @@ export const SceneControls = ({ sceneManager, onRenderModeChange, onLightingChan
               <label>Exposure: {exposure.toFixed(1)}</label>
               <input
                 type="range"
-                min="0.1"
-                max="3.0"
+                min="0"
+                max="2.0"
                 step="0.1"
                 value={exposure}
                 onChange={(e) => handleExposureChange(parseFloat(e.target.value))}

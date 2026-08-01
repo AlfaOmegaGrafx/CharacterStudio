@@ -74,19 +74,14 @@ export function syncAnimationBarDock(container) {
     }
   }
 
-  const appContent = viewport.closest('.app-content');
-  const sidebar = appContent?.querySelector('.opennexus-sidebar');
-  let chipRightInset = 16;
+  const appRoot = viewport.closest('.app');
+  const sidebar = appRoot?.querySelector('.opennexus-sidebar');
+  const chipRightInset = 12;
   if (sidebar) {
     const sidebarRect = sidebar.getBoundingClientRect();
     const visibleRight = Math.min(rect.right, sidebarRect.left);
     if (visibleRight > dockLeft) {
       dockWidth = visibleRight - dockLeft;
-    }
-    // Anchor minimized chip left of the sidebar (fixed panel may extend past viewport margin).
-    if (sidebarRect.width > 0 && sidebarRect.left < window.innerWidth) {
-      const sidebarClearance = window.innerWidth - sidebarRect.left;
-      chipRightInset = Math.max(16, Math.ceil(sidebarClearance + 28));
     }
   }
 

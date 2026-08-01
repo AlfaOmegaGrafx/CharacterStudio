@@ -1,36 +1,81 @@
 /**
  * In-headset menu (left controller Y) — bridges 2D viewport features into WebXR.
- * Tabs: Scene (view / move / measure) and Animation (BottomDisplayMenu essentials).
+ * Tabs: Scene, Animation, AI Tasks, Anim AI, Character Studio.
  */
 import * as THREE from './three.js';
 import {
   XR_AVATAR_VIEW_FIRST_PERSON,
   XR_AVATAR_VIEW_THIRD_PERSON,
 } from './sceneManagerXrAvatarView.js';
+import {
+  XR_MENU_TAB_AI,
+  XR_MENU_TAB_ANIM_AI,
+  XR_MENU_TAB_STUDIO,
+  XR_T3D_PRESETS,
+  XR_MOTION_PRESETS,
+  resolveXrTaskApi,
+  resolveXrCharacterManager,
+  xrTaskStatusLabel,
+  findLatestLoadableTask,
+  dispatchXrLoadTask,
+  xrSubmitTextTo3d,
+  xrSubmitTextToMotion,
+  xrReplayLastMotion,
+  xrRandomizeTraits,
+  xrCycleEmotion,
+  xrExportVrm,
+} from './sceneManagerXrMenuAiStudio.js';
 
-/** Landscape panel (wider than tall) so rows fit without hanging off. */
-const PANEL_W = 0.58;
-const PANEL_H = 0.44;
-const ROW_H = 0.038;
-const ROW_GAP = 0.005;
-const PAD_Y = 0.016;
-const TAB_H = 0.036;
+/** Portrait-leaning panel: main column + right tab strip. */
+const PANEL_W = 0.78;
+const PANEL_H = 0.64;
+const PAD = 0.014;
+const ROW_H = 0.048;
+const ROW_GAP = 0.007;
+const TAB_W = 0.12;
+const LABEL_FONT_PX = 52;
 const MENU_BUTTON_Y = 5;
 const TOGGLE_VIEW_BUTTON_X = 4;
 const TOGGLE_LOCO_BUTTON = 3;
 /**
  * Panel sits on the left grip. PlaneGeometry faces +Z; yaw stays 0 so the face
  * is readable. Pitch tips the panel toward the headset at resting hand pose (~45°).
- * Offset keeps the panel low on the controller (not floating 0.5 m ahead).
+ * Raised so the pitched bottom edge meets the controller (not floating ahead).
  */
 const PANEL_YAW = 0;
 const PANEL_PITCH_UP = -Math.PI / 4;
-/** Local grip offsets (m): forward (−Z) and down (−Y) onto the controller. */
-const PANEL_GRIP_FORWARD_M = 0.1;
-const PANEL_GRIP_DOWN_M = 0.08;
+/** Local grip forward (−Z). Larger = panel sits farther from the controller. */
+const PANEL_GRIP_FORWARD_M = 0.36;
+/** Kept for pose API; down offset after bottom-lift alignment. */
+const PANEL_GRIP_DOWN_M = 0.18;
+/**
+ * Raise panel content so pitched bottom edge (local y = −H/2) lands at grip Y.
+ * After rot.x = pitch: y' = (−H/2) cos(pitch); lift = −y' (positive when pitch is −45°).
+ */
+const PANEL_BOTTOM_LIFT_M = -((-PANEL_H / 2) * Math.cos(PANEL_PITCH_UP));
+/** Panel plate opacity — 75% invisible. */
+const PANEL_BG_OPACITY = 0.25;
+
+/** Main action column width (left of tabs). */
+const CONTENT_BTN_W = PANEL_W - TAB_W - PAD * 3;
+/** Main column center X. */
+const CONTENT_X = -PANEL_W / 2 + PAD + CONTENT_BTN_W / 2;
+/** Right tab strip center X. */
+const TAB_X = PANEL_W / 2 - PAD - TAB_W / 2;
 
 export const XR_MENU_TAB_SCENE = 'scene';
 export const XR_MENU_TAB_ANIMATION = 'animation';
+export { XR_MENU_TAB_AI, XR_MENU_TAB_ANIM_AI, XR_MENU_TAB_STUDIO };
+
+const XR_MENU_TABS = [
+  { id: XR_MENU_TAB_SCENE, label: 'Scene', action: 'tab-scene' },
+  { id: XR_MENU_TAB_ANIMATION, label: 'Anim', action: 'tab-animation' },
+  { id: XR_MENU_TAB_AI, label: 'AI', action: 'tab-ai' },
+  { id: XR_MENU_TAB_ANIM_AI, label: 'Motion', action: 'tab-anim-ai' },
+  { id: XR_MENU_TAB_STUDIO, label: 'Studio', action: 'tab-studio' },
+];
+
+const ALL_TAB_IDS = new Set(XR_MENU_TABS.map((t) => t.id));
 
 const _raycaster = new THREE.Raycaster();
 const _rayDir = new THREE.Vector3();
@@ -46,7 +91,7 @@ const ROW_OVER_BG_EPS = 0.02;
 function createTextTexture(text, opts = {}) {
   const width = opts.width ?? 1024;
   const height = opts.height ?? 128;
-  const fontPx = opts.fontPx ?? 42;
+  const fontPx = opts.fontPx ?? LABEL_FONT_PX;
   const active = !!opts.active;
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -108,14 +153,13 @@ function addMenuRow(parent, w, h, y, action, tex, z = 0.002, x = 0) {
 }
 
 /**
+ * Uniform vertical stack Y (index 0 = top).
  * @param {number} rowCount
  * @param {number} index from top (0)
- * @param {number} [topY]
  */
-function rowY(rowCount, index, topY = null) {
-  const top =
-    topY != null ? topY : PANEL_H / 2 - PAD_Y - ROW_H / 2;
-  const bottom = -PANEL_H / 2 + PAD_Y + ROW_H / 2;
+function columnY(rowCount, index) {
+  const top = PANEL_H / 2 - PAD - ROW_H / 2;
+  const bottom = -PANEL_H / 2 + PAD + ROW_H / 2;
   const usable = top - bottom;
   if (rowCount <= 1) return top;
   const stackH = rowCount * ROW_H + (rowCount - 1) * ROW_GAP;
@@ -151,7 +195,7 @@ export class SceneManagerXrMenu {
     this.locomotion = locomotion;
     this.measure = measure;
     this.open = false;
-    /** @type {'scene'|'animation'} */
+    /** @type {string} */
     this.tab = XR_MENU_TAB_SCENE;
     this._group = null;
     this._panelContent = null;
@@ -159,6 +203,10 @@ export class SceneManagerXrMenu {
     this._locomotionLabel = null;
     this._measureLabel = null;
     this._animStatusLabel = null;
+    this._aiStatusLabel = null;
+    this._studioStatusLabel = null;
+    this._emotionCycleState = { emotionIndex: 0 };
+    this._jobBusyLabel = '';
     this._prevLeftY = false;
     this._prevLeftX = false;
     this._prevLeftStick = false;
@@ -175,6 +223,8 @@ export class SceneManagerXrMenu {
     this._prevLeftX = false;
     this._prevLeftStick = false;
     this._hovered = null;
+    this._emotionCycleState = { emotionIndex: 0 };
+    this._jobBusyLabel = '';
   }
 
   /**
@@ -345,6 +395,15 @@ export class SceneManagerXrMenu {
     if (action === 'tab-animation') {
       return this._switchTab(XR_MENU_TAB_ANIMATION);
     }
+    if (action === 'tab-ai') {
+      return this._switchTab(XR_MENU_TAB_AI);
+    }
+    if (action === 'tab-anim-ai') {
+      return this._switchTab(XR_MENU_TAB_ANIM_AI);
+    }
+    if (action === 'tab-studio') {
+      return this._switchTab(XR_MENU_TAB_STUDIO);
+    }
     if (action === 'toggle-view') {
       this.avatarView.toggleMode();
       this._refreshStatusLabels();
@@ -378,11 +437,55 @@ export class SceneManagerXrMenu {
       void this._animNext();
       return true;
     }
+    if (action === 'anim-speed-1') {
+      this._setAnimSpeed(1);
+      return true;
+    }
+    if (action === 'anim-speed-2') {
+      this._setAnimSpeed(2);
+      return true;
+    }
+    if (action === 'ai-refresh') {
+      this._refreshStatusLabels();
+      return true;
+    }
+    if (action === 'ai-load-latest') {
+      void this._aiLoadLatest();
+      return true;
+    }
+    for (const preset of XR_T3D_PRESETS) {
+      if (action === preset.action) {
+        void this._aiSubmitT3d(preset);
+        return true;
+      }
+    }
+    for (const preset of XR_MOTION_PRESETS) {
+      if (action === preset.action) {
+        void this._animAiSubmitMotion(preset);
+        return true;
+      }
+    }
+    if (action === 'anim-ai-replay') {
+      void this._animAiReplayLast();
+      return true;
+    }
+    if (action === 'studio-randomize') {
+      void this._studioRandomize();
+      return true;
+    }
+    if (action === 'studio-emotion') {
+      this._studioCycleEmotion();
+      return true;
+    }
+    if (action === 'studio-export-vrm') {
+      this._studioExportVrm();
+      return true;
+    }
     return false;
   }
 
   _switchTab(tab) {
-    if (tab !== XR_MENU_TAB_SCENE && tab !== XR_MENU_TAB_ANIMATION) return false;
+    if (!ALL_TAB_IDS.has(tab)) return false;
     if (this.tab === tab && this._group) return true;
     this.tab = tab;
     if (!this.open) return true;
@@ -443,6 +546,100 @@ export class SceneManagerXrMenu {
     }
   }
 
+  _setAnimSpeed(speed) {
+    const am = this._getAnimationManager();
+    if (!am) return;
+    am.play?.();
+    am.setSpeed?.(speed);
+    this._refreshStatusLabels();
+  }
+
+  _setBusy(label) {
+    this._jobBusyLabel = label || '';
+    this._refreshStatusLabels();
+  }
+
+  async _aiLoadLatest() {
+    const api = resolveXrTaskApi(this.sceneManager);
+    const task = findLatestLoadableTask(api);
+    if (!task) {
+      this._setBusy('No completed task to load');
+      return;
+    }
+    dispatchXrLoadTask(task);
+    this._setBusy(`Loading · ${task.name || task.type || task.id}`);
+  }
+
+  async _aiSubmitT3d(preset) {
+    const api = resolveXrTaskApi(this.sceneManager);
+    this._setBusy(`Queuing · ${preset.label}`);
+    try {
+      await xrSubmitTextTo3d(api, preset.prompt, preset.label);
+      this._setBusy(`Started · ${preset.label}`);
+    } catch (err) {
+      console.warn('[XR][menu] ai-t3d failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 't3d'}`);
+    }
+  }
+
+  async _animAiSubmitMotion(preset) {
+    const api = resolveXrTaskApi(this.sceneManager);
+    this._setBusy(`Queuing · ${preset.label}`);
+    try {
+      await xrSubmitTextToMotion(api, this.sceneManager, preset.prompt, preset.label);
+      this._setBusy(`Started · ${preset.label}`);
+    } catch (err) {
+      console.warn('[XR][menu] anim-ai failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 'motion'}`);
+    }
+  }
+
+  async _animAiReplayLast() {
+    const api = resolveXrTaskApi(this.sceneManager);
+    this._setBusy('Replaying last motion…');
+    try {
+      const task = await xrReplayLastMotion(api, this.sceneManager);
+      this._setBusy(`Playing · ${task?.name || 'motion'}`);
+    } catch (err) {
+      console.warn('[XR][menu] anim-ai-replay failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 'replay'}`);
+    }
+  }
+
+  async _studioRandomize() {
+    this._setBusy('Randomizing traits…');
+    try {
+      await xrRandomizeTraits(resolveXrCharacterManager(this.sceneManager));
+      this._setBusy('Traits randomized');
+    } catch (err) {
+      console.warn('[XR][menu] studio-randomize failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 'randomize'}`);
+    }
+  }
+
+  _studioCycleEmotion() {
+    try {
+      const emotion = xrCycleEmotion(
+        resolveXrCharacterManager(this.sceneManager),
+        this._emotionCycleState,
+      );
+      this._setBusy(`Emotion · ${emotion}`);
+    } catch (err) {
+      console.warn('[XR][menu] studio-emotion failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 'emotion'}`);
+    }
+  }
+
+  _studioExportVrm() {
+    try {
+      xrExportVrm(resolveXrCharacterManager(this.sceneManager));
+      this._setBusy('VRM export started');
+    } catch (err) {
+      console.warn('[XR][menu] studio-export failed:', err?.message || err);
+      this._setBusy(`Failed · ${err?.message || 'export'}`);
+    }
+  }
+
   _createPanel() {
     this._destroyPanel();
     const scene = this.sceneManager?.scene;
@@ -455,6 +652,8 @@ export class SceneManagerXrMenu {
     panelContent.name = 'XRMenuPanelContent';
     panelContent.rotation.y = PANEL_YAW;
     panelContent.rotation.x = PANEL_PITCH_UP;
+    // Bottom edge of the pitched plate sits on the controller.
+    panelContent.position.y = PANEL_BOTTOM_LIFT_M;
     group.add(panelContent);
     this._panelContent = panelContent;
 
@@ -462,10 +661,10 @@ export class SceneManagerXrMenu {
       new THREE.PlaneGeometry(PANEL_W, PANEL_H),
       new THREE.MeshBasicMaterial({
         color: 0x0a0e18,
-        transparent: false,
-        opacity: 1,
+        transparent: true,
+        opacity: PANEL_BG_OPACITY,
         depthTest: true,
-        depthWrite: true,
+        depthWrite: false,
         side: THREE.DoubleSide,
       }),
     );
@@ -475,15 +674,15 @@ export class SceneManagerXrMenu {
     bg.userData.xrMenuAction = 'close';
     panelContent.add(bg);
 
-    // Extra opaque back plate so the scene never shows through in XR.
+    // Soft back plate (same visibility) for a slightly denser see-through panel.
     const backPlate = new THREE.Mesh(
       new THREE.PlaneGeometry(PANEL_W, PANEL_H),
       new THREE.MeshBasicMaterial({
         color: 0x05070c,
-        transparent: false,
-        opacity: 1,
+        transparent: true,
+        opacity: PANEL_BG_OPACITY,
         depthTest: true,
-        depthWrite: true,
+        depthWrite: false,
         side: THREE.DoubleSide,
       }),
     );
@@ -492,43 +691,18 @@ export class SceneManagerXrMenu {
     backPlate.renderOrder = 999;
     panelContent.add(backPlate);
 
-    // Tabs — Scene | Animation
-    const tabY = PANEL_H / 2 - PAD_Y - TAB_H / 2;
-    const tabW = PANEL_W * 0.44;
-    const tabGap = PANEL_W * 0.02;
-    addMenuRow(
-      panelContent,
-      tabW,
-      TAB_H,
-      tabY,
-      'tab-scene',
-      createTextTexture('Scene', {
-        fontPx: 36,
-        active: this.tab === XR_MENU_TAB_SCENE,
-      }),
-      0.003,
-      -(tabW / 2 + tabGap / 2),
-    );
-    addMenuRow(
-      panelContent,
-      tabW,
-      TAB_H,
-      tabY,
-      'tab-animation',
-      createTextTexture('Animation', {
-        fontPx: 36,
-        active: this.tab === XR_MENU_TAB_ANIMATION,
-      }),
-      0.003,
-      tabW / 2 + tabGap / 2,
-    );
-
-    const contentTop = tabY - TAB_H / 2 - ROW_GAP - ROW_H / 2;
+    this._buildSideTabs(panelContent);
 
     if (this.tab === XR_MENU_TAB_ANIMATION) {
-      this._buildAnimationRows(panelContent, contentTop);
+      this._buildAnimationRows(panelContent);
+    } else if (this.tab === XR_MENU_TAB_AI) {
+      this._buildAiRows(panelContent);
+    } else if (this.tab === XR_MENU_TAB_ANIM_AI) {
+      this._buildAnimAiRows(panelContent);
+    } else if (this.tab === XR_MENU_TAB_STUDIO) {
+      this._buildStudioRows(panelContent);
     } else {
-      this._buildSceneRows(panelContent, contentTop);
+      this._buildSceneRows(panelContent);
     }
 
     this._hitTargets = [];
@@ -548,37 +722,50 @@ export class SceneManagerXrMenu {
   }
 
   /**
+   * Vertical tab strip on the right (uniform size).
    * @param {THREE.Group} panelContent
-   * @param {number} contentTop
    */
-  _buildSceneRows(panelContent, contentTop) {
-    // Pair each control with its live status directly underneath.
-    /** @type {{ action: string, text: string, status?: 'view'|'loco'|'measure' }[]} */
-    const rows = [
-      { action: 'close', text: 'Close · Y / point+trigger' },
-      { action: 'toggle-view', text: 'View · X or point toggles' },
-      { action: 'toggle-view', text: this._viewModeLabel(), status: 'view' },
-      { action: 'toggle-locomotion', text: 'Move · stick click or point' },
-      { action: 'toggle-locomotion', text: this.locomotion.modeLabel(), status: 'loco' },
-      { action: 'toggle-measure', text: 'Measure · point start then end' },
-    ];
-    if (this.measure) {
-      rows.push({
-        action: 'toggle-measure',
-        text: this.measure.statusLabel(),
-        status: 'measure',
-      });
-    }
+  _buildSideTabs(panelContent) {
+    const n = XR_MENU_TABS.length;
+    XR_MENU_TABS.forEach((tab, i) => {
+      addMenuRow(
+        panelContent,
+        TAB_W,
+        ROW_H,
+        columnY(n, i),
+        tab.action,
+        createTextTexture(tab.label, {
+          fontPx: LABEL_FONT_PX,
+          active: this.tab === tab.id,
+          width: 512,
+          height: 128,
+        }),
+        0.003,
+        TAB_X,
+      );
+    });
+  }
 
-    rows.forEach((row, i) => {
+  /**
+   * Single uniform column of actions; Close is always last (bottom).
+   * @param {THREE.Group} panelContent
+   * @param {{ action: string, text: string, status?: string, name?: string }[]} rows
+   */
+  _buildActionColumn(panelContent, rows) {
+    const allRows = [...rows, { action: 'close', text: 'Close', name: 'XRMenuClose' }];
+    const n = allRows.length;
+    allRows.forEach((row, i) => {
       const mesh = addMenuRow(
         panelContent,
-        PANEL_W * 0.92,
+        CONTENT_BTN_W,
         ROW_H,
-        rowY(rows.length, i, contentTop),
+        columnY(n, i),
         row.action,
-        createTextTexture(row.text, { fontPx: 36 }),
+        createTextTexture(row.text, { fontPx: LABEL_FONT_PX }),
+        0.002,
+        CONTENT_X,
       );
+      if (row.name) mesh.name = row.name;
       if (row.status === 'view') {
         mesh.name = 'XRMenuViewStatus';
         this._statusLabel = mesh;
@@ -588,48 +775,102 @@ export class SceneManagerXrMenu {
       } else if (row.status === 'measure') {
         mesh.name = 'XRMenuMeasureStatus';
         this._measureLabel = mesh;
+      } else if (row.status === 'anim') {
+        mesh.name = 'XRMenuAnimStatus';
+        this._animStatusLabel = mesh;
+      } else if (row.status === 'ai') {
+        mesh.name = 'XRMenuAiStatus';
+        this._aiStatusLabel = mesh;
+      } else if (row.status === 'studio') {
+        mesh.name = 'XRMenuStudioStatus';
+        this._studioStatusLabel = mesh;
       }
     });
   }
 
   /**
    * @param {THREE.Group} panelContent
-   * @param {number} contentTop
    */
-  _buildAnimationRows(panelContent, contentTop) {
-    const am = this._getAnimationManager();
+  _buildSceneRows(panelContent) {
+    /** @type {{ action: string, text: string, status?: 'view'|'loco'|'measure' }[]} */
     const rows = [
-      { action: 'close', text: 'Close · Y / point+trigger' },
+      { action: 'toggle-view', text: 'View · X or point' },
+      { action: 'toggle-view', text: this._viewModeLabel(), status: 'view' },
+      { action: 'toggle-locomotion', text: 'Move · stick or point' },
+      { action: 'toggle-locomotion', text: this.locomotion.modeLabel(), status: 'loco' },
+      { action: 'toggle-measure', text: 'Measure · point start/end' },
+    ];
+    if (this.measure) {
+      rows.push({
+        action: 'toggle-measure',
+        text: this.measure.statusLabel(),
+        status: 'measure',
+      });
+    }
+    this._buildActionColumn(panelContent, rows);
+  }
+
+  /**
+   * @param {THREE.Group} panelContent
+   */
+  _buildAnimationRows(panelContent) {
+    const am = this._getAnimationManager();
+    this._buildActionColumn(panelContent, [
       { action: 'anim-play-pause', text: this._animPlayPauseLabel(am) },
       { action: 'anim-prev', text: 'Previous clip' },
       { action: 'anim-next', text: 'Next clip' },
-    ];
-    const totalRows = rows.length + 1;
+      { action: 'anim-speed-1', text: 'Speed · 1×' },
+      { action: 'anim-speed-2', text: 'Speed · 2×' },
+      { action: 'anim-play-pause', text: this._animClipLabel(am), status: 'anim' },
+    ]);
+  }
 
-    rows.forEach((row, i) => {
-      addMenuRow(
-        panelContent,
-        PANEL_W * 0.92,
-        ROW_H,
-        rowY(totalRows, i, contentTop),
-        row.action,
-        createTextTexture(row.text, { fontPx: 36 }),
-      );
-    });
+  /**
+   * @param {THREE.Group} panelContent
+   */
+  _buildAiRows(panelContent) {
+    const api = resolveXrTaskApi(this.sceneManager);
+    this._buildActionColumn(panelContent, [
+      { action: 'ai-refresh', text: 'Refresh task status' },
+      { action: 'ai-load-latest', text: 'Load latest completed' },
+      ...XR_T3D_PRESETS.map((p) => ({ action: p.action, text: p.label })),
+      {
+        action: 'ai-refresh',
+        text: this._jobBusyLabel || xrTaskStatusLabel(api),
+        status: 'ai',
+      },
+    ]);
+  }
 
-    const clipTex = createTextTexture(this._animClipLabel(am), { fontPx: 34 });
-    if (clipTex) {
-      const clip = addMenuRow(
-        panelContent,
-        PANEL_W * 0.92,
-        ROW_H,
-        rowY(totalRows, rows.length, contentTop),
-        'anim-play-pause',
-        clipTex,
-      );
-      clip.name = 'XRMenuAnimStatus';
-      this._animStatusLabel = clip;
-    }
+  /**
+   * @param {THREE.Group} panelContent
+   */
+  _buildAnimAiRows(panelContent) {
+    this._buildActionColumn(panelContent, [
+      ...XR_MOTION_PRESETS.map((p) => ({ action: p.action, text: p.label })),
+      { action: 'anim-ai-replay', text: 'Replay last motion' },
+      {
+        action: 'anim-ai-replay',
+        text: this._jobBusyLabel || 'Kimodo · presets (VRM required)',
+        status: 'ai',
+      },
+    ]);
+  }
+
+  /**
+   * @param {THREE.Group} panelContent
+   */
+  _buildStudioRows(panelContent) {
+    this._buildActionColumn(panelContent, [
+      { action: 'studio-randomize', text: 'Randomize traits' },
+      { action: 'studio-emotion', text: 'Cycle emotion' },
+      { action: 'studio-export-vrm', text: 'Export VRM' },
+      {
+        action: 'studio-randomize',
+        text: this._jobBusyLabel || 'Character Studio · loot / emotions',
+        status: 'studio',
+      },
+    ]);
   }
 
   _destroyPanel() {
@@ -648,6 +889,8 @@ export class SceneManagerXrMenu {
     this._locomotionLabel = null;
     this._measureLabel = null;
     this._animStatusLabel = null;
+    this._aiStatusLabel = null;
+    this._studioStatusLabel = null;
     this._hitTargets = [];
     this._hovered = null;
   }
@@ -688,7 +931,7 @@ export class SceneManagerXrMenu {
 
   _refreshStatusLabels() {
     if (this._statusLabel) {
-      const tex = createTextTexture(this._viewModeLabel(), { fontPx: 36 });
+      const tex = createTextTexture(this._viewModeLabel(), { fontPx: LABEL_FONT_PX });
       if (tex) {
         this._statusLabel.material.map?.dispose();
         this._statusLabel.material.map = tex;
@@ -696,7 +939,7 @@ export class SceneManagerXrMenu {
       }
     }
     if (this._locomotionLabel) {
-      const tex = createTextTexture(this.locomotion.modeLabel(), { fontPx: 36 });
+      const tex = createTextTexture(this.locomotion.modeLabel(), { fontPx: LABEL_FONT_PX });
       if (tex) {
         this._locomotionLabel.material.map?.dispose();
         this._locomotionLabel.material.map = tex;
@@ -704,7 +947,7 @@ export class SceneManagerXrMenu {
       }
     }
     if (this._measureLabel && this.measure) {
-      const tex = createTextTexture(this.measure.statusLabel(), { fontPx: 36 });
+      const tex = createTextTexture(this.measure.statusLabel(), { fontPx: LABEL_FONT_PX });
       if (tex) {
         this._measureLabel.material.map?.dispose();
         this._measureLabel.material.map = tex;
@@ -713,11 +956,36 @@ export class SceneManagerXrMenu {
     }
     if (this._animStatusLabel) {
       const am = this._getAnimationManager();
-      const tex = createTextTexture(this._animClipLabel(am), { fontPx: 34 });
+      const tex = createTextTexture(this._animClipLabel(am), { fontPx: LABEL_FONT_PX });
       if (tex) {
         this._animStatusLabel.material.map?.dispose();
         this._animStatusLabel.material.map = tex;
         this._animStatusLabel.material.needsUpdate = true;
+      }
+    }
+    if (this._aiStatusLabel) {
+      const api = resolveXrTaskApi(this.sceneManager);
+      const text =
+        this._jobBusyLabel ||
+        (this.tab === XR_MENU_TAB_ANIM_AI
+          ? 'Kimodo · presets (VRM required)'
+          : xrTaskStatusLabel(api));
+      const tex = createTextTexture(text, { fontPx: LABEL_FONT_PX });
+      if (tex) {
+        this._aiStatusLabel.material.map?.dispose();
+        this._aiStatusLabel.material.map = tex;
+        this._aiStatusLabel.material.needsUpdate = true;
+      }
+    }
+    if (this._studioStatusLabel) {
+      const tex = createTextTexture(
+        this._jobBusyLabel || 'Character Studio · loot / emotions',
+        { fontPx: LABEL_FONT_PX },
+      );
+      if (tex) {
+        this._studioStatusLabel.material.map?.dispose();
+        this._studioStatusLabel.material.map = tex;
+        this._studioStatusLabel.material.needsUpdate = true;
       }
     }
     console.info(
@@ -731,6 +999,8 @@ export class SceneManagerXrMenu {
       this.measure?.active ? this.measure.statusLabel() : 'off',
       '| Anim:',
       this._animClipLabel(this._getAnimationManager()),
+      '| Busy:',
+      this._jobBusyLabel || '—',
     );
   }
 }
@@ -740,3 +1010,11 @@ export const XR_MENU_PANEL_YAW = PANEL_YAW;
 export const XR_MENU_PANEL_PITCH = PANEL_PITCH_UP;
 export const XR_MENU_GRIP_FORWARD_M = PANEL_GRIP_FORWARD_M;
 export const XR_MENU_GRIP_DOWN_M = PANEL_GRIP_DOWN_M;
+export const XR_MENU_BOTTOM_LIFT_M = PANEL_BOTTOM_LIFT_M;
+export const XR_MENU_BG_OPACITY = PANEL_BG_OPACITY;
+export const XR_MENU_PANEL_H = PANEL_H;
+export const XR_MENU_PANEL_W = PANEL_W;
+export const XR_MENU_ROW_H = ROW_H;
+export const XR_MENU_CONTENT_X = CONTENT_X;
+export const XR_MENU_TAB_X = TAB_X;
+export const XR_MENU_LABEL_FONT_PX = LABEL_FONT_PX;

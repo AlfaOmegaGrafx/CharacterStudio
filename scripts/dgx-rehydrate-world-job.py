@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Re-register a completed Image-to-World job in Redis from on-disk outputs.
+"""Re-register a completed world job in Redis from on-disk outputs.
 
 Use when 3DAIGC-API returns 404 for a job whose files still exist under
 outputs/worlds/{job_id}/ (common after Redis TTL ~24h or API restart).
@@ -34,7 +34,7 @@ def main() -> int:
         return 1
 
     job_id = sys.argv[1].strip()
-    world_dir = WORLDS / job_id
+    world_dir = (WORLDS / job_id).resolve()
     manifest_path = world_dir / "world.manifest.json"
     env_ply = world_dir / "environment.ply"
 
@@ -48,25 +48,40 @@ def main() -> int:
     with manifest_path.open(encoding="utf-8") as f:
         manifest = json.load(f)
 
+    meta = manifest.get("metadata") or {}
+    pipeline = str(meta.get("pipeline") or "")
+    is_scan = "lingbot" in pipeline or meta.get("source_geometry") == "point_cloud"
+    feature = "environment_scan" if is_scan else "image_to_world"
+
     result = {
-        "feature": "image_to_world",
+        "success": True,
+        "feature": feature,
+        "pipeline": pipeline or feature,
+        "world_directory": str(world_dir),
         "world_manifest_path": str(manifest_path),
         "world_manifest_url": f"/api/v1/system/jobs/{job_id}/download?asset=manifest",
+        "world_base_url": f"/api/v1/system/jobs/{job_id}/world/",
+        "output_splat_path": str(env_ply),
         "output_mesh_path": str(env_ply),
+        "mesh_url": f"/api/v1/system/jobs/{job_id}/download",
         "prop_count": len(manifest.get("props") or []),
+        "generation_info": {
+            "pipeline": pipeline or feature,
+            **{k: meta.get(k) for k in ("source_geometry", "point_count", "metric_calibration") if k in meta},
+        },
     }
 
     now = datetime.now(timezone.utc).isoformat()
     job_data = {
         "job_id": job_id,
-        "feature": "image_to_world",
-        "inputs": json.dumps({}),
-        "model_preference": "",
+        "feature": feature,
+        "inputs": json.dumps({"world_name": manifest.get("name") or job_id}),
+        "model_preference": "lingbot_map_environment_scan" if is_scan else "",
         "priority": 0,
         "status": "completed",
-        "created_at": manifest.get("metadata", {}).get("created_at") or now,
+        "created_at": meta.get("created_at") or now,
         "completed_at": now,
-        "metadata": json.dumps({}),
+        "metadata": json.dumps({"rehydrated": True}),
         "user_id": "",
     }
 
@@ -77,8 +92,13 @@ def main() -> int:
     r.hset(results_key, job_id, json.dumps(result))
 
     print(f"Rehydrated job {job_id} in Redis")
+    print(f"  feature: {feature}")
+    print(f"  world_directory: {world_dir}")
     print(f"  manifest: {manifest_path}")
-    print(f"  verify: curl -sS http://127.0.0.1:7842/api/v1/system/jobs/{job_id}/download?asset=manifest | head")
+    print(
+        f"  verify: curl -sS -o /dev/null -w '%{{http_code}}' "
+        f"http://127.0.0.1:7842/api/v1/system/jobs/{job_id}/world/environment.ply"
+    )
     return 0
 
 

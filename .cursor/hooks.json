@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/session-continuity.sh",
+        "timeout": 60
+      }
+    ],
+    "workspaceOpen": [
+      {
+        "command": ".cursor/hooks/session-continuity.sh",
+        "timeout": 60
+      }
+    ]
+  }
+}

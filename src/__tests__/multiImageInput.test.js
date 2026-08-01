@@ -12,9 +12,9 @@ import {
 } from '../library/multiImageInput.js';
 
 describe('multiImageInput', () => {
-  it('flags splat/world/avatar tasks', () => {
+  it('flags splat/world/avatar/image-to-3d tasks', () => {
     expect(supportsMultiImageInput('image-to-splat')).toBe(true);
-    expect(supportsMultiImageInput('image-to-3d')).toBe(false);
+    expect(supportsMultiImageInput('image-to-3d')).toBe(true);
   });
 
   it('splits primary and references with cap', () => {

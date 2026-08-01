@@ -306,6 +306,9 @@ SCENE_CONTROLS_BACKUP.md
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+!.cursor/hooks.json
+!.cursor/hooks/
+!.cursor/hooks/**
 .cursor/mcp.json
 .cursor/settings.json
 .cursor/plans/
@@ -455,6 +458,9 @@ certs/
 **/.cursor/*
 !**/.cursor/rules/
 !**/.cursor/rules/**
+!**/.cursor/hooks.json
+!**/.cursor/hooks/
+!**/.cursor/hooks/**
 **/.cursor/mcp.json
 **/.cursor/settings.json
 **/.cursor/plans/
@@ -534,3 +540,14 @@ certs/
 
 # Bundled JDK in native tree (local dev only)
 native/android-xr-face-bridge/.jdk/
+
+# RepoResident session scratch (never commit)
+.agent/scratch/*
+!.agent/scratch/.gitkeep
+
+# Moat — creature / appearance auto-rig (local only; never commit/push)
+src/library/creaturePipelineCatalog.js
+src/library/creatureFaceRetarget.js
+src/library/appearanceClothing.js
+src/__tests__/creatureFaceRetarget.test.js
+src/__tests__/appearanceClothing.test.js

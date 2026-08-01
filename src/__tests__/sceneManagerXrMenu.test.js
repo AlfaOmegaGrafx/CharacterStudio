@@ -6,8 +6,14 @@ import {
   XR_MENU_PANEL_YAW,
   XR_MENU_GRIP_FORWARD_M,
   XR_MENU_GRIP_DOWN_M,
+  XR_MENU_BOTTOM_LIFT_M,
+  XR_MENU_BG_OPACITY,
+  XR_MENU_PANEL_H,
   XR_MENU_TAB_ANIMATION,
+  XR_MENU_TAB_AI,
+  XR_MENU_TAB_ANIM_AI,
   XR_MENU_TAB_SCENE,
+  XR_MENU_TAB_STUDIO,
 } from '../library/sceneManagerXrMenu.js';
 import { XR_AVATAR_VIEW_THIRD_PERSON } from '../library/sceneManagerXrAvatarView.js';
 import {
@@ -54,7 +60,14 @@ describe('SceneManagerXrMenu', () => {
       gripQuaternion: new THREE.Quaternion(),
     };
     menu._updatePanelPose(left);
-    // Menu sits on the controller: forward + down in grip-local space.
+    // Menu sits on the controller: forward + slight down in grip-local space.
+    expect(XR_MENU_GRIP_DOWN_M).toBeCloseTo(0.18);
+    expect(XR_MENU_BOTTOM_LIFT_M).toBeCloseTo(
+      -((-XR_MENU_PANEL_H / 2) * Math.cos(XR_MENU_PANEL_PITCH)),
+      5,
+    );
+    expect(XR_MENU_BOTTOM_LIFT_M).toBeGreaterThan(0);
+    expect(menu._panelContent?.position.y).toBeCloseTo(XR_MENU_BOTTOM_LIFT_M, 5);
     expect(menu._group.position.y).toBeCloseTo(
       left.gripPosition.y - XR_MENU_GRIP_DOWN_M,
       5,
@@ -65,9 +78,33 @@ describe('SceneManagerXrMenu', () => {
     );
 
     const bg = menu._panelContent.children.find((c) => c.name === 'XRMenuBackground');
-    expect(bg.geometry.parameters.width).toBeGreaterThan(bg.geometry.parameters.height);
-    expect(bg.material.transparent).toBe(false);
-    expect(bg.material.opacity).toBe(1);
+    expect(bg.geometry.parameters.width).toBeGreaterThan(0.5);
+    expect(bg.material.transparent).toBe(true);
+    expect(bg.material.opacity).toBeCloseTo(XR_MENU_BG_OPACITY);
+    expect(XR_MENU_BG_OPACITY).toBeCloseTo(0.25);
+
+    const closeBtn = menu._hitTargets.find((m) => m.name === 'XRMenuClose');
+    expect(closeBtn).toBeTruthy();
+    const mainBtns = menu._hitTargets.filter(
+      (m) =>
+        m.name !== 'XRMenuBackground' &&
+        m.name !== 'XRMenuBackPlate' &&
+        !String(m.userData.xrMenuAction || '').startsWith('tab-'),
+    );
+    const minMainY = Math.min(...mainBtns.map((m) => m.position.y));
+    expect(closeBtn.position.y).toBeCloseTo(minMainY, 5);
+    expect(closeBtn.position.x).toBeLessThan(0);
+
+    const tabs = menu._hitTargets.filter((m) =>
+      String(m.userData.xrMenuAction || '').startsWith('tab-'),
+    );
+    expect(tabs.length).toBe(5);
+    expect(tabs.every((t) => t.position.x > 0)).toBe(true);
+    const rowH = mainBtns[0].geometry.parameters.height;
+    expect(mainBtns.every((b) => b.geometry.parameters.height === rowH)).toBe(true);
+    expect(tabs.every((t) => t.geometry.parameters.height === rowH)).toBe(true);
+    const mainW = mainBtns[0].geometry.parameters.width;
+    expect(mainBtns.every((b) => b.geometry.parameters.width === mainW)).toBe(true);
 
     expect(menu._runMenuAction('toggle-view')).toBe(true);
     expect(avatarView.toggleMode).toHaveBeenCalled();
@@ -252,7 +289,7 @@ describe('SceneManagerXrMenu', () => {
     expect(hit?.object?.name).not.toBe('XRMenuBackground');
   });
 
-  it('keeps all menu meshes inside the opaque background bounds', () => {
+  it('keeps all menu meshes inside the panel background bounds', () => {
     const scene = new THREE.Scene();
     const menu = new SceneManagerXrMenu(
       { scene, camera: new THREE.PerspectiveCamera() },
@@ -329,6 +366,97 @@ describe('SceneManagerXrMenu', () => {
     expect(menu._runMenuAction('tab-scene')).toBe(true);
     expect(menu.tab).toBe(XR_MENU_TAB_SCENE);
     expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'toggle-view')).toBe(true);
+  });
+
+  it('exposes AI, Motion, and Studio tabs with XR-safe actions', async () => {
+    const scene = new THREE.Scene();
+    const createAndStartTask = vi.fn(async (data) => ({ ok: true, type: data.type }));
+    const getAllTasks = vi.fn(() => [
+      {
+        id: 't1',
+        type: 'text-to-3d',
+        status: 'completed',
+        name: 'Hero',
+        result: { mesh_url: 'https://example.com/hero.glb' },
+        completedAt: 2,
+      },
+    ]);
+    const getTaskStats = vi.fn(() => ({ running: 0, completed: 1, failed: 0 }));
+    const getTasksByType = vi.fn(() => []);
+    const loadRandomTraits = vi.fn(async () => {});
+    const playEmotion = vi.fn();
+    const downloadVRM = vi.fn();
+
+    const menu = new SceneManagerXrMenu(
+      {
+        scene,
+        camera: new THREE.PerspectiveCamera(),
+        getXrTaskApi: () => ({
+          createAndStartTask,
+          getAllTasks,
+          getTaskStats,
+          getTasksByType,
+          getApiEndpoint: () => '',
+        }),
+        getCharacterManager: () => ({
+          loadRandomTraits,
+          downloadVRM,
+          emotionManager: {
+            playEmotion,
+            availableEmotions: ['happy', 'angry'],
+          },
+        }),
+      },
+      { mode: XR_AVATAR_VIEW_THIRD_PERSON, toggleMode: vi.fn() },
+      new SceneManagerXrLocomotion({ emit: vi.fn() }),
+    );
+    menu.open = true;
+    menu._createPanel();
+
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'tab-ai')).toBe(true);
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'tab-anim-ai')).toBe(true);
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'tab-studio')).toBe(true);
+
+    expect(menu._runMenuAction('tab-ai')).toBe(true);
+    expect(menu.tab).toBe(XR_MENU_TAB_AI);
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'ai-load-latest')).toBe(true);
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'ai-t3d-hero')).toBe(true);
+
+    const loadSpy = vi.fn();
+    window.addEventListener('loadModelFromUrl', loadSpy);
+    expect(menu._runMenuAction('ai-load-latest')).toBe(true);
+    await vi.waitFor(() => {
+      expect(loadSpy).toHaveBeenCalled();
+    });
+    window.removeEventListener('loadModelFromUrl', loadSpy);
+
+    expect(menu._runMenuAction('ai-t3d-hero')).toBe(true);
+    await vi.waitFor(() => {
+      expect(createAndStartTask).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'text-to-3d' }),
+      );
+    });
+
+    expect(menu._runMenuAction('tab-anim-ai')).toBe(true);
+    expect(menu.tab).toBe(XR_MENU_TAB_ANIM_AI);
+    expect(menu._hitTargets.some((m) => m.userData.xrMenuAction === 'anim-ai-wave')).toBe(true);
+    expect(menu._runMenuAction('anim-ai-wave')).toBe(true);
+    await vi.waitFor(() => {
+      expect(createAndStartTask).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'text-to-motion' }),
+      );
+    });
+
+    expect(menu._runMenuAction('tab-studio')).toBe(true);
+    expect(menu.tab).toBe(XR_MENU_TAB_STUDIO);
+    expect(menu._runMenuAction('studio-randomize')).toBe(true);
+    await vi.waitFor(() => {
+      expect(loadRandomTraits).toHaveBeenCalled();
+    });
+    expect(menu._runMenuAction('studio-emotion')).toBe(true);
+    expect(playEmotion).toHaveBeenCalledWith('happy', undefined, false, 1);
+    expect(menu._runMenuAction('studio-export-vrm')).toBe(true);
+    expect(downloadVRM).toHaveBeenCalled();
   });
 });
 

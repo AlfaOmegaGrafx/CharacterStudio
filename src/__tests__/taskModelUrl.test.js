@@ -17,9 +17,22 @@ import {
   getTaskResultImageUrl,
   isTextToImageTaskResult,
   isTextToMotionTaskResult,
+  collapseDevDgxProxyPrefix,
+  DEV_DGX_PROXY_PREFIX,
 } from '../library/taskModelUrl.js';
 
 describe('taskModelUrl', () => {
+  it('collapses doubled __dev_dgx_proxy prefixes', () => {
+    const id = 'e7b79dee-be07-478b-a386-2686e5e4b9cc';
+    const doubled = `${DEV_DGX_PROXY_PREFIX}${DEV_DGX_PROXY_PREFIX}/api/v1/system/jobs/${id}/download`;
+    const once = `${DEV_DGX_PROXY_PREFIX}/api/v1/system/jobs/${id}/download`;
+    expect(collapseDevDgxProxyPrefix(doubled)).toBe(once);
+    expect(resolveTaskModelUrl(doubled, DEV_DGX_PROXY_PREFIX)).toBe(once);
+    expect(buildJobDownloadUrl({ modelUrl: once, job_id: id }, id, DEV_DGX_PROXY_PREFIX)).toBe(
+      once,
+    );
+  });
+
   it('getTaskResultMeshUrl prefers mesh paths over splat sidecars', () => {
     const url = getTaskResultMeshUrl({
       job_id: 'mesh-job',

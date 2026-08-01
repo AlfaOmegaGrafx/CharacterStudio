@@ -10,6 +10,7 @@ import {
   SceneManagerXrLocomotion,
   ensureXrLocomotionRig,
   alignXrLocomotionRigToViewport,
+  captureXrViewAsDesktop,
 } from './sceneManagerXrLocomotion.js';
 import { SceneManagerXrTeleport } from './sceneManagerXrTeleport.js';
 import { SceneManagerXrMouseEmulation } from './sceneManagerXrMouseEmulation.js';
@@ -133,6 +134,14 @@ export class SceneManagerXrInteraction {
         // Standoff after viewport align so the avatar sits in front of the live headset.
         this.avatarView.applyEntryStandoff();
       }
+    }
+
+    // Keep a fresh desktop-mapped snapshot for exit (OrbitControls handoff).
+    try {
+      const snap = captureXrViewAsDesktop(this.sceneManager);
+      if (snap) this.sceneManager.lastXrDesktopView = snap;
+    } catch {
+      // ignore per-frame capture errors
     }
 
     const session =

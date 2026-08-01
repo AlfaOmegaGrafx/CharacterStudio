@@ -11,7 +11,7 @@ export const DELETED_JOBS_STORAGE_KEY = 'opennexus3d_deleted_jobs_v1';
 export const MAX_STORED_TASKS = 100;
 export const MAX_DELETED_JOB_IDS = 500;
 /** Matches 3DAIGC-API Redis job TTL (24h). */
-export const JOB_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Mirrors taskManager pollJobStatus defaults (3s interval). */
 export const TASK_POLL_INTERVAL_MS = 3000;
@@ -350,6 +350,19 @@ export function sortTasksForDisplay(tasks) {
   return [...tasks].sort((a, b) => {
     const aTime = toDate(a?.createdAt).getTime();
     const bTime = toDate(b?.createdAt).getTime();
+    return bTime - aTime;
+  });
+}
+
+/**
+ * Completed/failed rows: newest first.
+ * @param {object[]} tasks
+ * @returns {object[]}
+ */
+export function sortCompletedTasksByRecency(tasks) {
+  return [...tasks].sort((a, b) => {
+    const aTime = toDate(a?.completedAt || a?.updatedAt || a?.createdAt).getTime();
+    const bTime = toDate(b?.completedAt || b?.updatedAt || b?.createdAt).getTime();
     return bTime - aTime;
   });
 }

@@ -508,6 +508,38 @@ export function inferModelFileExtensionFromSource(source) {
 }
 
 /**
+ * Collapse accidental duplicate Vite DGX proxy prefixes.
+ * e.g. /__dev_dgx_proxy/__dev_dgx_proxy/api/... → /__dev_dgx_proxy/api/...
+ * @param {string} url
+ * @returns {string}
+ */
+export function collapseDevDgxProxyPrefix(url) {
+  if (!url || typeof url !== 'string') return url;
+  const p = DEV_DGX_PROXY_PREFIX;
+  let out = url.trim();
+  const doubledPath = `${p}${p}/`;
+  while (out.includes(doubledPath)) {
+    out = out.replace(doubledPath, `${p}/`);
+  }
+  // Absolute same-origin URLs with a doubled proxy path
+  try {
+    if (/^https?:\/\//i.test(out)) {
+      const parsed = new URL(out);
+      if (parsed.pathname.includes(doubledPath) || parsed.pathname.startsWith(`${p}${p}/`)) {
+        parsed.pathname = parsed.pathname.split(doubledPath).join(`${p}/`);
+        while (parsed.pathname.startsWith(`${p}${p}/`)) {
+          parsed.pathname = `${p}/${parsed.pathname.slice((p + p + '/').length)}`;
+        }
+        return parsed.toString();
+      }
+    }
+  } catch {
+    // keep collapsed relative form
+  }
+  return out;
+}
+
+/**
  * In dev, route cross-origin API asset URLs through the Vite DGX proxy (same-origin, avoids CORS).
  * @param {string} url
  * @returns {string}
@@ -516,9 +548,11 @@ export function maybeProxyApiAssetUrl(url) {
   if (!url || typeof window === 'undefined' || !import.meta.env.DEV) return url;
 
   try {
-    const parsed = new URL(url, window.location.origin);
-    if (!parsed.pathname.startsWith('/api/')) return url;
-    if (parsed.origin === window.location.origin) return url;
+    const collapsed = collapseDevDgxProxyPrefix(url);
+    const parsed = new URL(collapsed, window.location.origin);
+    if (parsed.pathname.startsWith(`${DEV_DGX_PROXY_PREFIX}/`)) return collapsed;
+    if (!parsed.pathname.startsWith('/api/')) return collapsed;
+    if (parsed.origin === window.location.origin) return collapsed;
     return `${window.location.origin}${DEV_DGX_PROXY_PREFIX}${parsed.pathname}${parsed.search}`;
   } catch {
     return url;
@@ -533,7 +567,7 @@ export function maybeProxyApiAssetUrl(url) {
 export function resolveTaskModelUrl(rawUrl, apiEndpoint = '') {
   if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
 
-  let trimmed = rawUrl.trim();
+  let trimmed = collapseDevDgxProxyPrefix(rawUrl.trim());
 
   if (trimmed.startsWith('/')) {
     const base = (apiEndpoint || '').replace(/\/$/, '');
@@ -556,7 +590,7 @@ export function resolveTaskModelUrl(rawUrl, apiEndpoint = '') {
     trimmed = base ? `${base}/${trimmed.replace(/^\/+/, '')}` : `http://${trimmed.replace(/^\/+/, '')}`;
   }
 
-  return maybeProxyApiAssetUrl(trimmed);
+  return maybeProxyApiAssetUrl(collapseDevDgxProxyPrefix(trimmed));
 }
 
 /**
@@ -578,11 +612,18 @@ export function buildJobDownloadUrl(jobStatus, jobId, apiBase) {
     modelUrl = `/api/v1/system/jobs/${jobId}/download`;
   }
 
+  modelUrl = collapseDevDgxProxyPrefix(modelUrl);
+
   if (modelUrl.startsWith('/')) {
-    return `${base}${modelUrl}`;
+    const alreadyHasBase =
+      modelUrl === base ||
+      modelUrl.startsWith(`${base}/`) ||
+      modelUrl.startsWith(`${DEV_DGX_PROXY_PREFIX}/`);
+    if (alreadyHasBase) return modelUrl;
+    return collapseDevDgxProxyPrefix(`${base}${modelUrl}`);
   }
   if (!/^https?:\/\//i.test(modelUrl) && base) {
-    return `${base}/${modelUrl.replace(/^\/+/, '')}`;
+    return collapseDevDgxProxyPrefix(`${base}/${modelUrl.replace(/^\/+/, '')}`);
   }
   return modelUrl;
 }

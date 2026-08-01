@@ -1,0 +1,3297 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  --app-header-height: 96px;
+  --scene-controls-height: 52px;
+  --app-chrome-top-height: calc(var(--app-header-height) + var(--scene-controls-height));
+  --task-progress-height: 0px;
+  --viewport-top-inset: 0px;
+  --viewport-bottom-inset: 0px;
+  --app-visible-height: 100dvh;
+  --animation-bar-edge-gap: 16px;
+  /* Collapsed side-rail icon column — shared by left & right panels */
+  --collapsed-rail-width: 60px;
+  --collapsed-rail-icon-width: 40px;
+  --collapsed-rail-icon-height: 40px;
+  --collapsed-rail-icon-gap: 0.5rem;
+  --collapsed-rail-icon-padding: 0.5rem 0.25rem;
+  /* Z-index scale — side panels MUST stay below header (see .cursor/rules/sidebar-z-index.mdc) */
+  --z-side-panel: 998;
+  --z-app-header: 1001;
+  --z-scene-controls: 1002;
+}
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 0;
+  background: #2a2a2a;
+  position: relative;
+  z-index: var(--z-app-header, 1001);
+  border-bottom: 1px solid #3a3a3a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Title bar — compact horizontal row across the top */
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2px 0.5rem;
+  white-space: nowrap;
+  border-bottom: 1px solid #333;
+  font-size: 1.7rem;
+}
+
+.main-title {
+  margin: 0;
+  font-size: calc(1.7rem - 2px);
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: calc(1.7rem - 2px);
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.audiowave-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-top: calc(0.35rem + 1px);
+}
+
+.space-time-row,
+.edition-row {
+  display: inline;
+  line-height: 1;
+  font-size: calc(0.85rem + 3px);
+  font-weight: 600;
+  color: #aaa;
+  letter-spacing: 0.5px;
+}
+
+.title-api-control {
+  display: flex;
+  align-items: center;
+  margin-left: 0.25rem;
+}
+
+.title-xr-lab-link {
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8ec5ff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.title-xr-lab-link:hover {
+  text-decoration: underline;
+}
+
+/* Header controls horizontal scroll wrapper — mirrors scene-controls-scroll */
+.header-controls-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2a2a2a;
+  box-sizing: border-box;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.header-controls-scroll.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.header-controls-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.header-controls-scroll::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+.header-controls-scroll::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
+
+.header-controls {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: 100%;
+  justify-content: flex-start;
+  padding: 4px 0.5rem;
+}
+
+.header-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: fit-content;
+  position: relative;
+  padding: 0 0.3rem;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* Single button sections (like TASKS) */
+.single-button-section {
+  flex: 0 0 auto;
+  padding: 0 0.2rem;
+}
+
+/* Two button sections (like FILE, AI) */
+.two-button-section {
+  flex: 0 0 auto;
+  padding: 0 0.25rem;
+}
+
+/* Three button sections (like RENDER) */
+.three-button-section {
+  flex: 0 0 auto;
+  padding: 0 0.3rem;
+}
+
+/* Four button sections (like STUDIO) */
+.four-button-section {
+  flex: 0 0 auto;
+  padding: 0 0.4rem;
+}
+
+.header-section:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0.25rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, #555, transparent);
+}
+
+.header-section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.header-controls-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin: 0 4px;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.65rem;
+  font-weight: 500;
+  white-space: nowrap;
+  height: 32px;
+  justify-content: center;
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+
+.header-btn:hover {
+  background: #4a4a4a;
+  border-color: #666;
+  color: #fff;
+}
+
+.header-btn.active {
+  background: #007acc;
+  border-color: #007acc;
+  color: white;
+  box-shadow: 0 0 8px rgba(0, 122, 204, 0.3);
+}
+
+.header-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.header-btn:disabled:hover {
+  background: #3a3a3a;
+  border-color: #555;
+  color: #ccc;
+}
+
+.api-status-compact {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  background: #333333;
+  border-radius: 3px;
+  border: 1px solid #444;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.api-status-compact:hover {
+  background: #404040;
+  border-color: #666;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.api-status-compact .status-indicator {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  margin-right: 0.15rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.api-status-compact .status-indicator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #00ff00;
+}
+
+.api-status-compact .status-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.task-status-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.task-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-badge {
+  background: #ffc107;
+  color: #000;
+  padding: 0.1rem 0.3rem;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* OpenNexus3DStudio Panel System */
+.opennexus-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100vh;
+  background: #2a2a2a;
+  border-left: 1px solid #3a3a3a;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #333;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.panel-close-btn {
+  background: #dc3545;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-close-btn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.panel-close-btn:active {
+  transform: scale(0.95);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  background: #2a2a2a;
+}
+
+/* OpenNexus3DStudio Viewport Overlay - Responsive positioning */
+.opennexus-viewport-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(90vw, 1000px);
+  height: min(90vh, 675px);
+  max-width: calc(100vw - 80px); /* Account for sidebars */
+  max-height: calc(100vh - 80px); /* Account for header */
+  background: rgba(42, 42, 42, 0.95);
+  border-radius: 8px;
+  border: 2px solid rgba(0, 122, 204, 0.8);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1001;
+  padding: 12px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+}
+
+.opennexus-viewport-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.opennexus-viewport-canvas {
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border: 1px solid rgba(0, 122, 204, 0.3);
+}
+
+.opennexus-viewport-canvas:hover {
+  border-color: rgba(0, 122, 204, 0.6);
+}
+
+/* OpenNexus3DStudio Sidebar — align with .app-content top (matches left rail origin) */
+.opennexus-sidebar {
+  position: fixed;
+  top: calc(var(--app-content-top, var(--app-chrome-top-height, 148px)) + var(--viewport-top-inset, 0px));
+  bottom: max(0px, env(safe-area-inset-bottom, 0px), var(--viewport-bottom-inset, 0px));
+  right: 0;
+  width: min(400px, 30vw);
+  height: auto;
+  background: #2a2a2a;
+  border-left: 1px solid #3a3a3a;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+  z-index: var(--z-side-panel, 998);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.3s ease, width 0.3s ease, top 0.3s ease;
+  transform: translateX(0);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.opennexus-sidebar:not(.collapsed) {
+  transform: translateX(0);
+}
+
+.opennexus-sidebar.collapsed {
+  width: var(--collapsed-rail-width, 60px);
+  padding: 0;
+  transform: translateX(calc(100% - var(--collapsed-rail-width, 60px)));
+  align-items: stretch;
+}
+
+/* Scene Manager row hamburgers — flex-aligned with toolbar (not fixed offset) */
+.anchored-left-hamburger,
+.anchored-right-hamburger {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  padding: 0.5rem;
+  cursor: pointer;
+  z-index: 1003;
+  transition: all 0.2s ease;
+  margin: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.anchored-left-hamburger {
+  border-radius: 0 4px 4px 0;
+}
+
+.anchored-right-hamburger {
+  border-radius: 4px 0 0 4px;
+}
+
+.anchored-left-hamburger:hover,
+.anchored-right-hamburger:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+/* Removed viewport toggle - now controlled by sidebar */
+
+/* Original OpenNexus3DStudio Hamburger Menu (hidden) */
+.opennexus-sticky-hamburger {
+  position: sticky;
+  top: 0;
+  left: 0;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 0 4px 4px 0;
+  padding: 0.5rem;
+  cursor: pointer;
+  z-index: 1004;
+  transition: all 0.2s ease;
+  margin: 0;
+  align-self: flex-start;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+}
+
+.opennexus-sticky-hamburger:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.opennexus-sticky-hamburger .hamburger-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 20px;
+  height: 16px;
+}
+
+.opennexus-sticky-hamburger .hamburger-icon span {
+  display: block;
+  height: 2px;
+  background: #ccc;
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+
+/* Collapsed side-rail icon columns — mirrored layout on left & right */
+.collapsed-sidebar-icons,
+.collapsed-opennexus-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--collapsed-rail-icon-gap, 0.5rem);
+  padding: var(--collapsed-rail-icon-padding, 0.5rem 0.25rem);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.opennexus-sidebar-icon,
+.sidebar-icon {
+  width: var(--collapsed-rail-icon-width, 40px);
+  height: var(--collapsed-rail-icon-height, 40px);
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.opennexus-sidebar-icon:hover,
+.sidebar-icon:hover {
+  background: #4a4a4a;
+  border-color: #666;
+  transform: scale(1.05);
+}
+
+.opennexus-sidebar-icon.active {
+  background: #007acc;
+  border-color: #007acc;
+  color: white;
+  box-shadow: 0 0 8px rgba(0, 122, 204, 0.3);
+}
+
+.opennexus-sidebar-icon:active,
+.sidebar-icon:active {
+  transform: scale(0.95);
+}
+
+.opennexus-sidebar-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 10000;
+  border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  font-weight: 500;
+  min-width: max-content;
+  margin-right: 8px;
+}
+
+.opennexus-sidebar-icon::before {
+  content: '';
+  position: absolute;
+  right: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-left-color: #1a1a1a;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.opennexus-sidebar-icon:hover::after,
+.opennexus-sidebar-icon:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* OpenNexus3DStudio Content */
+.opennexus-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0;
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+}
+
+.opennexus-header {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  min-height: 52px;
+  padding: 6px 0.75rem;
+  box-sizing: border-box;
+  background: #2a2a2a;
+  border-bottom: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  margin: 0;
+  z-index: 2;
+}
+
+.opennexus-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+
+.opennexus-panels {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem 0.75rem;
+  background: #2a2a2a;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* OpenNexus3DStudio Scrollbar styling */
+.opennexus-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.opennexus-sidebar::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+.opennexus-sidebar::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+
+.opennexus-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Adjust main viewport based on sidebar states */
+.app-content .main-viewport {
+  flex: 1;
+  transition: all 0.3s ease;
+}
+
+/* When main sidebar is collapsed, give more space to viewport */
+.app-content.main-sidebar-collapsed .main-viewport {
+  margin-left: 0;
+}
+
+/* OpenNexus3DStudio viewport is completely independent of left sidebar state */
+/* When OpenNexus3DStudio sidebar is open, adjust viewport (regardless of left sidebar state) */
+.app-content.has-opennexus .main-viewport {
+  margin-right: min(400px, 30vw) !important;
+}
+
+/* When OpenNexus3DStudio sidebar is collapsed, remove right margin (regardless of left sidebar state) */
+.app-content:not(.has-opennexus) .main-viewport {
+  margin-right: 0 !important;
+}
+
+/* Ensure OpenNexus3DStudio viewport is completely independent of left sidebar state */
+.app-content.main-sidebar-collapsed.has-opennexus .main-viewport {
+  margin-right: min(400px, 30vw) !important;
+  margin-left: 0;
+}
+
+.app-content.main-sidebar-collapsed:not(.has-opennexus) .main-viewport {
+  margin-right: 0 !important;
+  margin-left: 0;
+}
+
+/* Note: OpenNexus3DStudio viewport is now completely independent of left sidebar state */
+
+/* Main viewport should always be visible - never hide it */
+.app-content .main-viewport {
+  display: block !important;
+}
+
+/* Independent OpenNexus3DStudio viewport control - Locked to HDR Sky position */
+.opennexus-viewport-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+  display: flex;
+}
+
+.opennexus-viewport-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -50%) scale(0.95);
+  display: none;
+}
+
+/* OpenNexus3DStudio viewport is completely independent of left sidebar state and locked to HDR Sky */
+.opennexus-viewport-overlay {
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+}
+
+/* Simplified OpenNexus3DStudio Components */
+.sectionTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.editorContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.15rem;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.editorButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 35px;
+  justify-content: center;
+}
+
+.editorButton:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.editorIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.editorText {
+  color: #ccc;
+  font-weight: 500;
+  font-size: 0.6rem;
+  text-align: center;
+  line-height: 1;
+}
+
+.selectorContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.colorPickerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.colorPickerButton {
+  background: #007acc;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.colorPicker {
+  padding: 0.5rem;
+  background: #333;
+  border-radius: 4px;
+  border: 1px solid #555;
+}
+
+.traitOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.traitOption {
+  padding: 0.5rem;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  color: #ccc;
+  transition: all 0.2s ease;
+}
+
+.traitOption:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.buttonContainer {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.buttonLeft, .buttonRight {
+  padding: 6px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  min-width: 50px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.buttonLeft:hover, .buttonRight:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.downloadButton {
+  padding: 6px 12px;
+  border: 1px solid #007acc;
+  border-radius: 4px;
+  background: #007acc;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  min-width: 50px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.downloadButton:hover {
+  background: #0056b3;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.atlasSettings {
+  margin: 1rem 0;
+}
+
+.atlasControl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.atlasControl label {
+  color: #ccc;
+  font-weight: 500;
+}
+
+.mintButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 6px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 50px;
+  height: 30px;
+  font-size: 0.8rem;
+  justify-content: center;
+}
+
+.mintButton:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.mintButton.active {
+  background: #007acc;
+  border-color: #007acc;
+  color: white;
+}
+
+.buttonIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-right: 0.5rem;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.colorPickerIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-right: 0.5rem;
+}
+
+.walletIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-right: 0.5rem;
+}
+
+.statusMessage {
+  padding: 0.5rem;
+  background: #333;
+  border-radius: 4px;
+  color: #ccc;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.walletSection {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.walletButton {
+  padding: 6px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  min-width: 50px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.walletButton.connected {
+  background: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+.charactersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.characterCard {
+  padding: 1rem;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.characterCard:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.characterCard.selected {
+  background: #007acc;
+  border-color: #007acc;
+  color: white;
+}
+
+.characterThumbnail img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.characterInfo h4 {
+  margin: 0.5rem 0;
+  color: #fff;
+}
+
+.rarity {
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.rarity.common {
+  background: #6c757d;
+  color: white;
+}
+
+.rarity.rare {
+  background: #007bff;
+  color: white;
+}
+
+.rarity.epic {
+  background: #6f42c1;
+  color: white;
+}
+
+.rarity.legendary {
+  background: #fd7e14;
+  color: white;
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  position: relative; /* Anchor for the absolutely-positioned OpenNexus3DStudio sidebar */
+  overflow: hidden;
+  min-height: 0;
+  /* Fill space below header + scene-controls row (do not use header height only). */
+}
+
+.sidebar {
+  width: 320px;
+  height: 100%;
+  background: #2a2a2a;
+  border-right: 1px solid #3a3a3a;
+  padding: 0.5rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  transition: width 0.3s ease;
+  position: relative;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sidebar.sidebar-scroll-panel {
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sidebar.sidebar-scroll-panel.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sidebar.collapsed {
+  width: var(--collapsed-rail-width, 60px);
+  padding: 0;
+  align-items: stretch;
+}
+
+/* Original Hamburger Menu (hidden) */
+.hamburger-menu {
+  position: sticky;
+  top: 0;
+  right: 0;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 0 0 0 4px;
+  padding: 0.5rem;
+  cursor: pointer;
+  z-index: 1004;
+  transition: all 0.2s ease;
+  margin: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  visibility: hidden;
+}
+
+.hamburger-menu:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.hamburger-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 20px;
+  height: 16px;
+}
+
+.hamburger-icon span {
+  display: block;
+  height: 2px;
+  background: #ccc;
+  border-radius: 1px;
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .hamburger-menu,
+.opennexus-sidebar.collapsed .opennexus-sticky-hamburger {
+  display: none;
+}
+
+/* Collapsed Sidebar Icons — see shared .collapsed-sidebar-icons rules above */
+
+.sidebar-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1a1a1a;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 10000;
+  border: 1px solid #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  font-weight: 500;
+  min-width: max-content;
+  margin-left: 8px;
+}
+
+.sidebar-icon::before {
+  content: '';
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-right-color: #1a1a1a;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.sidebar-icon:hover::after,
+.sidebar-icon:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.main-viewport {
+  flex: 1;
+  position: relative;
+  background: #1a1a1a;
+  width: 100%;
+  height: 100%;
+  min-width: 0; /* Allow flexbox to shrink */
+  min-height: 0; /* Allow flexbox to shrink */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Bottom menu: BottomDisplayMenu pins itself to .main-viewport via JS (see component). */
+.main-viewport .bottom-menu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-scene-controls, 1002);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  overflow: visible;
+  padding-bottom: max(
+    var(--animation-bar-edge-gap),
+    env(safe-area-inset-bottom, 0px),
+    var(--viewport-bottom-inset, 0px)
+  );
+  box-sizing: border-box;
+}
+
+/* XR / mobile browsers (Galaxy XR Chrome): larger floor when insets are under-reported */
+@media (hover: none) and (pointer: coarse) {
+  .main-viewport .bottom-menu-overlay {
+    --animation-bar-edge-gap: 24px;
+  }
+}
+
+/* Scrollbar styling */
+.sidebar::-webkit-scrollbar,
+.main-viewport::-webkit-scrollbar,
+.opennexus-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.main-viewport::-webkit-scrollbar-track,
+.opennexus-sidebar::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.main-viewport::-webkit-scrollbar-thumb,
+.opennexus-sidebar::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.main-viewport::-webkit-scrollbar-thumb:hover,
+.opennexus-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Firefox scrollbar styling */
+.sidebar,
+.main-viewport,
+.opennexus-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2a2a2a;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .app-content {
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: 200px;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid #3a3a3a;
+  }
+  
+  .main-viewport {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+
+  .app-content.has-opennexus .main-viewport {
+    margin-right: 0 !important;
+  }
+}
+
+/* Button styles */
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 50px;
+  height: 30px;
+}
+
+.btn-primary {
+  background: #007acc;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #005a9e;
+}
+
+.btn-secondary {
+  background: #555;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #666;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #218838;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Input styles */
+.input {
+  padding: 0.5rem;
+  border: 1px solid #555;
+  border-radius: 8px;
+  background: #3a3a3a;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #007acc;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* Card styles */
+.card {
+  background: #3a3a3a;
+  border-radius: 8px;
+  padding: 0.5rem;
+  border: 1px solid #4a4a4a;
+  box-sizing: border-box;
+  overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.card-header {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #4a4a4a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Progress bar */
+.progress {
+  width: 100%;
+  height: 8px;
+  background: #555;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #007acc;
+  transition: width 0.3s ease;
+}
+
+/* Status indicators */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-running {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-pending {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #555;
+  border-top: 2px solid #007acc;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Utility classes */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+
+.p-1 { padding: 0.25rem; }
+.p-2 { padding: 0.5rem; }
+.p-3 { padding: 1rem; }
+.p-4 { padding: 1.5rem; }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 1rem; }
+.gap-4 { gap: 1.5rem; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+/* Component specific styles */
+.scene-3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.scene-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-overlay p {
+  margin-top: 1rem;
+  color: white;
+}
+
+/* Task Manager — panel chrome in TaskManager.css */
+
+button,
+.header-btn,
+.control-button,
+.mode-button,
+.hamburger-icon {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.task-item {
+  border-left: 3px solid #555;
+}
+
+.task-item.status-running {
+  border-left-color: #ffc107;
+}
+
+.task-item.status-completed {
+  border-left-color: #28a745;
+}
+
+.task-item.status-failed {
+  border-left-color: #dc3545;
+}
+
+/* File Upload */
+.dropzone {
+  transition: all 0.2s ease;
+}
+
+.dropzone:hover {
+  background: #3a3a3a;
+}
+
+.dropzone.active {
+  background: #4a4a4a;
+  border-color: #007acc;
+}
+
+.upload-content {
+  color: #ccc;
+}
+
+.upload-icon {
+  opacity: 0.7;
+}
+
+.format-list {
+  font-size: 0.8rem;
+}
+
+.format-item {
+  margin-bottom: 0.25rem;
+  color: #aaa;
+}
+
+/* Render Mode Selector */
+.mode-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.mode-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.7rem;
+  min-width: 60px;
+}
+
+.mode-button:hover {
+  background: #4a4a4a;
+  border-color: #666;
+}
+
+.mode-button.active {
+  background: #007acc;
+  border-color: #007acc;
+  color: white;
+}
+
+.mode-button.skeleton-active {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+}
+
+/* Bone structure panel styles */
+.bone-item {
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.bone-item:hover {
+  background: #333;
+  border-color: #666;
+}
+
+.bone-item.selected {
+  background: #1a4d1a;
+  border-color: #28a745;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+}
+
+.bone-name {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.bone-info {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.bone-position, .bone-rotation, .bone-parent {
+  margin: 2px 0;
+}
+
+/* Bone structure panel - vertical under icon */
+.bone-structure-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  width: 100%;
+  min-width: 280px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  background: #2a2a2a;
+  z-index: 10;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.bone-structure-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 350px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Bone tree styling - vertical with horizontal expansion */
+.bone-tree {
+  font-size: 0.5rem;
+  line-height: 1.1;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 280px;
+  overflow: visible;
+  flex: 1;
+  min-height: 0;
+}
+
+.bone-tree-node {
+  margin: 0;
+  padding: 0;
+  display: block;
+  width: 100%;
+}
+
+.bone-tree-header {
+  display: grid;
+  grid-template-columns: 4px 1fr 30px 40px 30px;
+  align-items: center;
+  gap: 0px;
+  font-size: 0.25rem;
+  padding: 0px;
+  white-space: nowrap;
+  overflow: visible;
+  min-height: 12px;
+}
+
+.tree-expand-button {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.3rem;
+  width: 6px;
+  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tree-spacer {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+}
+
+.bone-name-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  grid-column: 2;
+  min-width: 0;
+  overflow: visible;
+}
+
+.bone-name {
+  font-size: 0.25rem;
+  font-weight: 500;
+  color: #fff;
+  overflow: visible;
+  white-space: nowrap;
+  line-height: 1.0;
+  padding: 0;
+}
+
+.bone-type-badge {
+  background: #444;
+  color: #aaa;
+  padding: 0 1px;
+  border-radius: 0.5px;
+  font-size: 0.2rem;
+  align-self: flex-start;
+  border: 0.5px solid #555;
+  line-height: 0.9;
+}
+
+.bone-info {
+  font-size: 0.2rem;
+  color: #888;
+  padding: 0;
+  line-height: 1.0;
+  grid-column: 3;
+  text-align: center;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.bone-position {
+  margin: 0;
+  font-size: 0.4rem;
+  font-weight: 600;
+  grid-column: 4;
+  text-align: center;
+  overflow: visible;
+  white-space: nowrap;
+  padding: 0;
+  color: #ff8c00;
+  max-width: 40px;
+}
+
+.bone-rotation {
+  margin: 0;
+  font-size: 0.4rem;
+  font-weight: 600;
+  grid-column: 5;
+  text-align: center;
+  overflow: visible;
+  white-space: nowrap;
+  padding: 0;
+  color: #ff8c00;
+  max-width: 30px;
+}
+
+.bone-parent {
+  margin: 0;
+  font-size: 0.3rem;
+  font-weight: 500;
+  display: none; /* Hide parent info to save space */
+}
+
+.bone-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 4px;
+  margin-top: 1px;
+}
+
+.bone-item {
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  transition: all 0.2s ease;
+  display: block;
+  width: 100%;
+  border: none;
+}
+
+.bone-item:hover {
+  background: #333;
+}
+
+.bone-item.selected {
+  background: #1a4d1a;
+  border-color: #28a745;
+  box-shadow: 0 0 4px rgba(40, 167, 69, 0.3);
+}
+
+/* BlendShapeController vertical layout */
+.blend-shape-controller {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.blend-shape-controller .card {
+  flex: 0 0 auto;
+  min-width: 200px;
+}
+
+.blend-shape-controller .bone-structure-panel {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: none;
+}
+
+/* Removed duplicate sticky-header rule */
+
+/* Bone tree structure */
+.bone-tree {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bone-tree-node {
+  margin-bottom: 4px;
+}
+
+.bone-tree-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-expand-button {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+}
+
+.tree-expand-button:hover {
+  color: #fff;
+}
+
+.tree-spacer {
+  width: 16px;
+  display: inline-block;
+}
+
+.bone-type-badge {
+  background: #444;
+  color: #aaa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  margin-left: auto;
+}
+
+.bone-children {
+  margin-top: 4px;
+}
+
+.mode-icon {
+  font-size: 1.2rem;
+}
+
+.mode-label {
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* Removed duplicate blend-shape-controller rule */
+
+.skeleton-icon-button {
+  background: #007acc;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.5rem;
+}
+
+.skeleton-icon-button:hover {
+  background: #005a9e;
+  transform: scale(1.05);
+}
+
+.skeleton-icon-button:active {
+  transform: scale(0.95);
+}
+
+.expand-icon-button {
+  background: #007acc;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.5rem;
+  color: white;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expand-icon-button:hover {
+  background: #005a9e;
+  transform: scale(1.05);
+}
+
+.expand-icon-button:active {
+  transform: scale(0.95);
+}
+
+/* Bone Structure Panel - removed conflicting fixed positioning */
+
+.bone-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-bottom: 1px solid #4a4a4a;
+  background: #333;
+}
+
+.skeleton-icon {
+  font-size: 1.2rem;
+  margin-right: 0.5rem;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+}
+
+.close-button {
+  background: #dc3545;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-button:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.close-button:active {
+  transform: scale(0.95);
+}
+
+.bone-structure-content {
+  padding: 1rem;
+}
+
+.no-bones {
+  text-align: center;
+  color: #888;
+  padding: 2rem 0;
+}
+
+.bone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bone-categories {
+  background: #3a3a3a;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid #4a4a4a;
+}
+
+.category-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #007acc;
+  border-bottom: 1px solid #555;
+  padding-bottom: 0.5rem;
+}
+
+.bone-item {
+  background: #2a2a2a;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #444;
+  transition: all 0.2s ease;
+}
+
+.bone-item:hover {
+  background: #333;
+  border-color: #007acc;
+}
+
+.bone-name {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.bone-info {
+  font-size: 0.8rem;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+.bone-position,
+.bone-rotation,
+.bone-parent {
+  margin-bottom: 0.1rem;
+}
+
+.bone-position {
+  color: #4CAF50;
+}
+
+.bone-rotation {
+  color: #FF9800;
+}
+
+.bone-parent {
+  color: #2196F3;
+}
+
+.blend-shape-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.blend-shape-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.blend-shape-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #ccc;
+}
+
+.blend-shape-value {
+  font-size: 0.7rem;
+  color: #888;
+  background: #333;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.blend-shape-slider {
+  width: 100%;
+  height: 4px;
+  background: #555;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.blend-shape-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #007acc;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.blend-shape-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #007acc;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+/* API Status */
+.status-indicator {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  margin-right: 0.15rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-indicator.connected {
+  background: transparent;
+  box-shadow: none;
+}
+
+.status-indicator.disconnected {
+  background: transparent;
+  box-shadow: none;
+}
+
+.status-indicator.disconnected::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc3545;
+  box-shadow: 0 0 4px rgba(220, 53, 69, 0.5);
+}
+
+.status-text {
+  font-weight: 500;
+}
+
+.endpoint-edit input {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.endpoint-display p {
+  font-family: monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+/* GLB Export */
+.glb-export {
+  margin-bottom: 1rem;
+}
+
+.no-model {
+  text-align: center;
+  padding: 2rem;
+  color: #aaa;
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.option-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.option-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #007acc;
+}
+
+.export-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #4a4a4a;
+}
+
+/* VRM Import/Export */
+.vrm-import,
+.vrm-export {
+  margin-bottom: 1rem;
+}
+
+.vrm-metadata {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a4a;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.metadata-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metadata-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.metadata-value {
+  font-size: 0.9rem;
+  color: #fff;
+  word-break: break-word;
+}
+
+.vrm-metadata-section {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a4a;
+  margin: 1rem 0;
+}
+
+.vrm-metadata-section h4 {
+  margin: 0 0 1rem 0;
+  color: #60a5fa;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.metadata-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metadata-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.metadata-value {
+  font-size: 0.9rem;
+  color: #fff;
+  word-break: break-word;
+}
+
+.metadata-value a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.metadata-value a:hover {
+  text-decoration: underline;
+}
+
+/* VRM Images Section */
+.vrm-images-section {
+  background: #1a1a1a;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a3a;
+  margin: 1rem 0;
+}
+
+.vrm-images-section h5 {
+  margin: 0 0 1rem 0;
+  color: #10b981;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.texture-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #2a2a2a;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a4a;
+}
+
+.texture-preview {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.texture-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.texture-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #666;
+}
+
+.texture-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.texture-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.texture-name {
+  font-size: 0.8rem;
+  color: #fff;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.texture-type {
+  font-size: 0.7rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.texture-index-info {
+  background: #1a1a1a;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #3a3a3a;
+  margin: 0.5rem 0;
+}
+
+/* OpenNexus3DStudio Import */
+.opennexus-import {
+  margin-bottom: 1rem;
+}
+
+.import-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.import-info {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a4a;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.feature-icon {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.import-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.validation-result {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #4a4a4a;
+}
+
+.validation-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.validation-status.valid {
+  color: #28a745;
+}
+
+.validation-status.invalid {
+  color: #dc3545;
+}
+
+.status-icon {
+  font-weight: bold;
+}
+
+.validation-issues,
+.validation-warnings {
+  margin-top: 0.5rem;
+}
+
+.validation-issues ul,
+.validation-warnings ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .mode-buttons {
+    grid-template-columns: 1fr;
+  }
+  
+  .mode-button {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  
+  .mode-icon {
+    font-size: 1rem;
+  }
+  
+  .mode-label {
+    font-size: 0.8rem;
+  }
+  
+  .export-options {
+    gap: 0.75rem;
+  }
+  
+  .feature-list {
+    gap: 0.25rem;
+  }
+}
+
+/* Studio section specific styling */
+.studio-section {
+  /* margin-left: auto; - removed since we're using space-between */
+}
+
+.studio-controls {
+  gap: 0.1rem;
+}
+
+/* Avatar sidebar header pills only — do not affect /studio page actions */
+.studio-controls .studio-btn,
+.header-btn.studio-btn {
+  padding: 0.3rem 0.4rem;
+  font-size: 0.65rem;
+  width: 50px;
+  height: 32px;
+  justify-content: center;
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+
+/* OpenNexus3DStudio Overlay Styles */
+.opennexus-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.opennexus-overlay-title {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 1001;
+}
+
+.overlay-status {
+  background: #00ff00;
+  color: #000000;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.opennexus-overlay-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.overlay-3d-canvas {
+  width: 100%;
+  max-width: 800px;
+  height: 500px;
+  min-height: 400px;
+  position: relative;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.overlay-info {
+  text-align: center;
+  color: #ffffff;
+  max-width: 800px;
+  width: 100%;
+}
+
+.overlay-info p {
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  color: #a0a0a0;
+}
+
+.overlay-features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.overlay-features span {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  color: #3b82f6;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.overlay-features span:hover {
+  background: rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Interactive Overlay Buttons */
+.overlay-section {
+  margin-bottom: 2rem;
+}
+
+.overlay-section h4 {
+  color: #ffffff;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  border-bottom: 1px solid #3a3a3a;
+  padding-bottom: 0.5rem;
+}
+
+.overlay-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.overlay-button {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #3b82f6;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 60px;
+}
+
+.overlay-button:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.overlay-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(107, 114, 128, 0.1);
+  border-color: #6b7280;
+  color: #6b7280;
+}
+
+/* Button-specific styling */
+.vrm-button {
+  border-color: #8b5cf6;
+  color: #a78bfa;
+}
+
+.vrm-button:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.glb-button {
+  border-color: #06b6d4;
+  color: #22d3ee;
+}
+
+.glb-button:hover:not(:disabled) {
+  background: rgba(6, 182, 212, 0.2);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
+
+.material-button {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.material-button:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.blend-button {
+  border-color: #ec4899;
+  color: #f472b6;
+}
+
+.blend-button:hover:not(:disabled) {
+  background: rgba(236, 72, 153, 0.2);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+}
+
+.core3d-generate-button {
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.core3d-generate-button:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.core3d-export-button {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.core3d-export-button:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Loot Assets Button Styling */
+.loot-load-button {
+  border-color: #8b5cf6;
+  color: #a78bfa;
+}
+
+.loot-load-button:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.loot-character-button {
+  border-color: #06b6d4;
+  color: #22d3ee;
+}
+
+.loot-character-button:hover:not(:disabled) {
+  background: rgba(6, 182, 212, 0.2);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
+
+.loot-random-button {
+  border-color: #ec4899;
+  color: #f472b6;
+}
+
+.loot-random-button:hover:not(:disabled) {
+  background: rgba(236, 72, 153, 0.2);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+}
+
+.loot-export-button {
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.loot-export-button:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Status Information */
+.overlay-status-info {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.status-item:last-child {
+  margin-bottom: 0;
+}
+
+.status-label {
+  color: #a0a0a0;
+  font-weight: 500;
+}
+
+.status-value {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Responsive overlay */
+@media (max-width: 768px) {
+  .opennexus-overlay-title {
+    font-size: 1rem;
+    top: 0.5rem;
+    left: 0.5rem;
+  }
+  
+  .overlay-info {
+    padding: 1rem;
+  }
+  
+  .overlay-features {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .overlay-features span {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  .overlay-buttons {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .overlay-button {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    min-height: 50px;
+  }
+  
+  .overlay-section h4 {
+    font-size: 0.9rem;
+  }
+  
+  .status-item {
+    font-size: 0.8rem;
+  }
+}
+
+/* Stats Overlay */
+.stats-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.stats-panel {
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 12px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  min-width: 150px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.stats-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #4a90e2;
+  text-align: center;
+  border-bottom: 1px solid #555;
+  padding-bottom: 4px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.stat-item:last-child {
+  margin-bottom: 0;
+}
+
+.stat-label {
+  color: #ccc;
+}
+
+.stat-value {
+  color: #fff;
+  font-weight: bold;
+}
+
+/* Scene Manager toolbar — below header; hamburgers in same row for alignment */
+.scene-controls-row {
+  flex-shrink: 0;
+  background: rgba(42, 42, 42, 0.95);
+  border-bottom: 1px solid #3a3a3a;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: var(--z-scene-controls, 1002);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  border-radius: 0 0 8px 8px;
+  position: relative;
+  isolation: isolate;
+}
+
+.scene-controls-container {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Inner scroll + nowrap live in SceneControlsCompact.css (.scene-controls-scroll / .scene-controls-compact) */
+.scene-controls-compact {
+  gap: 10px;
+}
+
+.render-mode-controls,
+.lighting-controls,
+.camera-controls,
+.additional-controls,
+.render-mode-dropdown-controls,
+.light-intensity-controls,
+.view-controls,
+.auto-tone-controls,
+.exposure-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(60, 60, 60, 0.6);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.render-mode-controls:hover,
+.lighting-controls:hover,
+.camera-controls:hover,
+.additional-controls:hover,
+.render-mode-dropdown-controls:hover,
+.light-intensity-controls:hover,
+.view-controls:hover,
+.auto-tone-controls:hover,
+.exposure-controls:hover {
+  background: rgba(80, 80, 80, 0.8);
+  border-color: #666;
+}
+
+.control-label {
+  font-size: 0.7rem;
+  color: #ccc;
+  white-space: nowrap;
+  font-weight: 600;
+  margin-right: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.control-select {
+  background: rgba(60, 60, 60, 0.8);
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #fff;
+  padding: 3px 6px;
+  font-size: 0.7rem;
+  min-width: 60px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.control-select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.control-select:hover {
+  border-color: #666;
+}
+
+.control-select option {
+  background: #2a2a2a;
+  color: #ffffff;
+}
+
+.control-button {
+  background: rgba(60, 60, 60, 0.8);
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #fff;
+  padding: 3px 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 34px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-button:hover {
+  background: rgba(80, 80, 80, 0.9);
+  border-color: #4a90e2;
+  transform: translateY(-1px);
+}
+
+.control-button:active {
+  background: rgba(40, 40, 40, 0.9);
+  transform: translateY(0);
+}
+
+.control-button.active {
+  background: rgba(74, 144, 226, 0.3);
+  border-color: #4a90e2;
+  color: #4a90e2;
+}
+
+.render-mode-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.render-mode-buttons .control-button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 2px 4px;
+  font-size: 0.6rem;
+}
+
+/* Slider Controls */
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.control-slider {
+  width: 60px;
+  height: 3px;
+  background: #555;
+  border-radius: 2px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.control-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #4a90e2;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.control-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #4a90e2;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.slider-value {
+  font-size: 0.6rem;
+  color: #fff;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Checkbox Controls */
+.control-checkbox {
+  width: 12px;
+  height: 12px;
+  background: rgba(60, 60, 60, 0.8);
+  border: 1px solid #555;
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.control-checkbox:checked {
+  background: #4a90e2;
+  border-color: #4a90e2;
+}
+
+.control-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -3px;
+  left: 1px;
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+}
+
+.control-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.3);
+}
+
+/* Disabled Controls */
+.control-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(40, 40, 40, 0.8);
+}
+
+/* Responsive design for compact controls */
+@media (max-width: 1400px) {
+  .scene-controls-compact {
+    gap: 8px;
+    padding: 0 4px;
+  }
+  
+  .control-label {
+    font-size: 0.65rem;
+  }
+  
+  .control-select,
+  .control-button {
+    font-size: 0.65rem;
+    padding: 2px 4px;
+  }
+  
+  .control-slider {
+    width: 50px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .scene-controls-compact {
+    gap: 6px;
+    padding: 0 2px;
+  }
+  
+  .control-label {
+    font-size: 0.6rem;
+  }
+  
+  .control-select,
+  .control-button {
+    font-size: 0.6rem;
+    padding: 2px 3px;
+    min-width: 50px;
+  }
+  
+  .control-slider {
+    width: 40px;
+  }
+}
+
+@media (max-width: 768px) {
+  .scene-controls-compact {
+    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+
+  .scene-controls-row {
+    padding: 6px 2px;
+  }
+  
+  .control-label {
+    font-size: 0.55rem;
+  }
+  
+  .control-select,
+  .control-button {
+    font-size: 0.55rem;
+    padding: 1px 2px;
+    min-width: 40px;
+  }
+  
+  .control-slider {
+    width: 35px;
+  }
+}

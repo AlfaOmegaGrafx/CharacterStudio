@@ -25,6 +25,15 @@ const _viewportFwd = new THREE.Vector3();
 const _parentQuat = new THREE.Quaternion();
 const _orientQuat = new THREE.Quaternion();
 const _delta = new THREE.Vector3();
+const _capPos = new THREE.Vector3();
+const _capQuat = new THREE.Quaternion();
+const _capInvQuat = new THREE.Quaternion();
+const _capFwd = new THREE.Vector3();
+const _capTarget = new THREE.Vector3();
+const _capInv = new THREE.Matrix4();
+const _capTmpPos = new THREE.Vector3();
+const _capScale = new THREE.Vector3();
+const _capEuler = new THREE.Euler();
 
 /**
  * Snap-turn the locomotion rig around the viewer's floor position (not rig origin).
@@ -391,4 +400,102 @@ export function alignXrLocomotionRigToViewport(sceneManager, frame = null, refer
 /** @deprecated Use alignXrLocomotionRigToViewport — kept for older call sites/tests. */
 export function seedXrLocomotionRigFromViewport(sceneManager, frame, referenceSpace) {
   return alignXrLocomotionRigToViewport(sceneManager, frame, referenceSpace);
+}
+
+/**
+ * Convert the live XR headset pose into a desktop OrbitControls view.
+ * Content is under wrapper/rig during XR and returns to scene-local on exit, so
+ * we undo the offset-root world matrix (rig includes wrapper when parented).
+ *
+ * @param {import('./sceneManager.js').SceneManager} sceneManager
+ * @returns {{ position: THREE.Vector3, quaternion: THREE.Quaternion, target: THREE.Vector3, zoom: number }|null}
+ */
+export function captureXrViewAsDesktop(sceneManager) {
+  const camera = sceneManager?.camera;
+  if (!camera) return null;
+
+  camera.updateMatrixWorld?.(true);
+  const offsetRoot = sceneManager.xrLocomotionRig || sceneManager.vrSceneWrapper;
+  if (offsetRoot) offsetRoot.updateMatrixWorld?.(true);
+
+  camera.getWorldPosition(_capPos);
+  camera.getWorldQuaternion(_capQuat);
+
+  if (offsetRoot?.matrixWorld) {
+    _capInv.copy(offsetRoot.matrixWorld).invert();
+    _capPos.applyMatrix4(_capInv);
+    _capInv.decompose(_capTmpPos, _capInvQuat, _capScale);
+    _capQuat.copy(_capInvQuat).multiply(_capQuat);
+  }
+
+  // Desktop orbit view: keep yaw/pitch, drop headset roll.
+  _capEuler.setFromQuaternion(_capQuat, 'YXZ');
+  _capEuler.z = 0;
+  _capQuat.setFromEuler(_capEuler);
+
+  _capFwd.set(0, 0, -1).applyQuaternion(_capQuat);
+  if (_capFwd.lengthSq() < 1e-8) {
+    _capFwd.set(0, 0, -1);
+  } else {
+    _capFwd.normalize();
+  }
+
+  let lookDist = 2.5;
+  if (sceneManager.preXRCameraPosition && sceneManager.preXRCameraTarget) {
+    const d = sceneManager.preXRCameraPosition.distanceTo(sceneManager.preXRCameraTarget);
+    if (Number.isFinite(d) && d > 0.15) lookDist = d;
+  }
+  _capTarget.copy(_capPos).addScaledVector(_capFwd, lookDist);
+
+  const zoom =
+    typeof sceneManager.preXRCameraZoom === 'number'
+      ? sceneManager.preXRCameraZoom
+      : typeof camera.zoom === 'number'
+        ? camera.zoom
+        : 1;
+
+  return {
+    position: _capPos.clone(),
+    quaternion: _capQuat.clone(),
+    target: _capTarget.clone(),
+    zoom,
+  };
+}
+
+/**
+ * Apply a captured XR→desktop view after the XR wrapper/rig is dismantled.
+ * @param {import('./sceneManager.js').SceneManager} sceneManager
+ * @param {{ position: THREE.Vector3, quaternion: THREE.Quaternion, target: THREE.Vector3, zoom?: number }} view
+ */
+export function applyDesktopViewFromXr(sceneManager, view) {
+  if (!sceneManager?.camera || !view?.position || !view?.quaternion || !view?.target) {
+    return false;
+  }
+  const camera = sceneManager.camera;
+  camera.position.copy(view.position);
+  camera.quaternion.copy(view.quaternion);
+  camera.up.set(0, 1, 0);
+  if (typeof view.zoom === 'number') {
+    camera.zoom = view.zoom;
+  }
+  if (typeof camera.updateProjectionMatrix === 'function') {
+    camera.updateProjectionMatrix();
+  }
+  if (sceneManager.controls?.target) {
+    sceneManager.controls.target.copy(view.target);
+    sceneManager.controls.update?.();
+  }
+  console.info('[XR][locomotion] Desktop view set from last XR view:', {
+    position: {
+      x: Number(view.position.x.toFixed(3)),
+      y: Number(view.position.y.toFixed(3)),
+      z: Number(view.position.z.toFixed(3)),
+    },
+    target: {
+      x: Number(view.target.x.toFixed(3)),
+      y: Number(view.target.y.toFixed(3)),
+      z: Number(view.target.z.toFixed(3)),
+    },
+  });
+  return true;
 }

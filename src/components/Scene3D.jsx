@@ -122,14 +122,15 @@ const Scene3D = ({ model, renderMode }) => {
       if (currentTime - lastTime >= 1000) { // Update every second
         const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
         
-        if (sceneManager.renderer && sceneManager.renderer.info) {
-          const info = sceneManager.renderer.info;
-          setStats({
-            fps: fps,
-            triangles: info.render.triangles,
-            drawCalls: info.render.calls
-          });
-        }
+        const modelStats =
+          typeof sceneManager.getViewportModelStats === 'function'
+            ? sceneManager.getViewportModelStats()
+            : { triangles: 0, drawCalls: 0 };
+        setStats({
+          fps,
+          triangles: modelStats.triangles,
+          drawCalls: modelStats.drawCalls,
+        });
         
         frameCount = 0;
         lastTime = currentTime;
@@ -420,7 +421,7 @@ const Scene3D = ({ model, renderMode }) => {
       {showStats && isInitialized && (
         <div className="stats-overlay">
           <div className="stats-panel">
-            <div className="stats-title">Performance Stats</div>
+            <div className="stats-title">Viewport Model Stats</div>
             <div className="stat-item">
               <span className="stat-label">FPS:</span>
               <span className="stat-value">{stats.fps}</span>

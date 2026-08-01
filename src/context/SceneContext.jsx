@@ -72,9 +72,11 @@ export const SceneProvider = ({ children }) => {
         manifestIdentifier: null
       });
     }
-    // XR menu Animation tab resolves clips/playback via SceneManager bridge
+    // XR menu Animation / Character tabs resolve managers via SceneManager bridges
     sceneManagerRef.current.getAnimationManager = () =>
       characterManagerRef.current?.animationManager ?? null;
+    sceneManagerRef.current.getCharacterManager = () =>
+      characterManagerRef.current ?? null;
     setManagersReady(true);
   }, []);
 

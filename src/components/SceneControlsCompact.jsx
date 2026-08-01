@@ -65,6 +65,14 @@ const SceneControlsCompact = ({
     draggingClassName: 'is-dragging',
   });
 
+  useEffect(() => {
+    if (!isInitialized) return;
+    setLightIntensity(1.0);
+    setLightIntensityState(1.0);
+    setExposure(1.0);
+    setExposureState(1.0);
+  }, [isInitialized, setLightIntensity, setExposure]);
+
   const handleRenderModeChange = (mode) => {
     console.log(`🎨 Render mode changed to: ${mode}`);
     if (onRenderModeChange) {
@@ -527,7 +535,7 @@ const SceneControlsCompact = ({
             type="range"
             className="control-slider"
             min="0"
-            max="3"
+            max="2"
             step="0.1"
             value={exposure}
             onChange={(e) => handleExposureChange(parseFloat(e.target.value))}

@@ -80,14 +80,17 @@ npm run iwsdk:reference-warmup   # optional: local API corpus for iwsdk-referenc
 ### Run dev with autonomous agent browser
 
 ```bash
-npm run dev              # vite --host on port 3000 (headset + daily dev; use this)
+npm run dev              # vite --host on port 3000 (headset + daily dev; emulator only — no Playwright)
+IWSDK_AI=1 npm run dev   # also launch IWSDK Playwright agent browser (MCP / screenshots)
 npm run dev:iwsdk        # iwsdk dev up + agent browser (may fail on Windows if port 3010 is busy)
 npm run dev:runtime      # same as npm run dev
 ```
 
+PowerShell: `$env:IWSDK_AI='1'; npm run dev`
+
 If `npm run dev` fails with **port already in use**, stop the old server (`Ctrl+C` in the terminal that ran it) or run `npx iwsdk dev down`, then retry.
 
-The Playwright tab sets `window.__IWER_MCP_MANAGED`; the app auto-redirects to `/xr` in dev.
+Without `IWSDK_AI=1`, Vite will **not** auto-launch Chromium (prevents `net::ERR_CONNECTION_CLOSED` noise on Windows HTTPS). With AI enabled, the Playwright tab sets `window.__IWER_MCP_MANAGED`; the app auto-redirects to `/xr` in dev.
 
 ### Autonomous XR tests (CLI, no headset)
 

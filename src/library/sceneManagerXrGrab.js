@@ -200,21 +200,28 @@ export class SceneManagerXrGrab {
 
   /**
    * @param {import('./sceneManagerXrInput.js').XrPointerState[]} pointers
+   * @param {{
+   *   uiRaycast?: ((pointer: import('./sceneManagerXrInput.js').XrPointerState) =>
+   *     { point: THREE.Vector3, distance: number }|null)|null,
+   *   suppressGrab?: boolean,
+   * }} [options]
    */
-  update(pointers) {
+  update(pointers, options = {}) {
     const scene = this.sceneManager?.scene;
     if (!scene) return;
+    const uiRaycast = options.uiRaycast || null;
+    const suppressGrab = !!options.suppressGrab;
 
     for (const pointer of pointers) {
       const key = pointer.handedness;
       const grab = this.activeGrabs.get(key);
       const holding = grab && pointer.selectPressed;
 
-      if (holding) {
+      if (holding && !suppressGrab) {
         this._followPointerRay(grab, pointer);
       }
 
-      if (pointer.selectStart && !grab) {
+      if (!suppressGrab && pointer.selectStart && !grab) {
         const hit = this.raycast(pointer);
         if (hit) {
           this._beginGrab(pointer, hit.root, hit.point, hit.distance);
@@ -253,7 +260,7 @@ export class SceneManagerXrGrab {
         });
       }
 
-      this._updatePointerVisual(scene, pointer);
+      this._updatePointerVisual(scene, pointer, uiRaycast);
     }
   }
 
@@ -264,8 +271,10 @@ export class SceneManagerXrGrab {
   /**
    * @param {THREE.Scene} scene
    * @param {import('./sceneManagerXrInput.js').XrPointerState} pointer
+   * @param {((pointer: import('./sceneManagerXrInput.js').XrPointerState) =>
+   *   { point: THREE.Vector3, distance: number }|null)|null} [uiRaycast]
    */
-  _updatePointerVisual(scene, pointer) {
+  _updatePointerVisual(scene, pointer, uiRaycast = null) {
     const key = pointer.handedness;
     let cursor = this.cursorMeshes.get(key);
     let line = this.rayLines.get(key);
@@ -298,11 +307,15 @@ export class SceneManagerXrGrab {
       this.rayLines.set(key, line);
     }
 
-    const hit = this.raycast(pointer);
-    const end = hit?.point || pointer.rayOrigin.clone().addScaledVector(pointer.rayDirection, 2);
+    const uiHit = uiRaycast ? uiRaycast(pointer) : null;
+    const grabHit = uiHit ? null : this.raycast(pointer);
+    const end =
+      uiHit?.point ||
+      grabHit?.point ||
+      pointer.rayOrigin.clone().addScaledVector(pointer.rayDirection, 2);
     cursor.position.copy(end);
     const active = pointer.selectPressed || pointer.pinchActive;
-    const color = active ? 0xffdd00 : 0xffffff;
+    const color = uiHit ? 0x66aaff : active ? 0xffdd00 : 0xffffff;
     cursor.material.color.setHex(color);
     line.material.color.setHex(color);
 

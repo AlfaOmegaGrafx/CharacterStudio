@@ -43,7 +43,7 @@ Task types in the **New Task** panel (`TaskManager.jsx`), backed by [3DAIGC-API]
 | Image to Raw Mesh | `image_to_raw_mesh` | Hunyuan3D-2.1, UltraShape |
 | Mesh painting (text / image) | `text_mesh_painting` / `image_mesh_painting` | TRELLIS.2, Hunyuan |
 | Mesh segmentation | `mesh_segmentation` | P3-SAM |
-| Mesh retopology | `mesh_retopology` | Instant Meshes |
+| Mesh retopology | `mesh_retopology` | AutoRemesher (default), Instant Meshes, Trimesh Decimate |
 | Mesh UV unwrapping | `uv_unwrapping` | xatlas |
 | Mesh editing (text / image) | `text_mesh_editing` / `image_mesh_editing` | VoxHammer |
 | Auto rigging | `auto_rig` | **SkinTokens** (full GLB), UniRig (template VRM) |

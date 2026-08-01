@@ -69,6 +69,24 @@ describe('point cloud world routing', () => {
     expect(shouldLoadEnvironmentAsPointCloud(m)).toBe(false);
   });
 
+  it('routes LingBot Phase B gsplat worlds to Spark (not points)', () => {
+    const m = parseWorldPackage({
+      id: 'office-3dgs-b',
+      environment: {
+        type: 'gaussian_splat',
+        url: 'environment.ply',
+        renderer: 'spark',
+      },
+      metadata: {
+        pipeline: 'lingbot_map_environment_scan',
+        source_geometry: 'gaussian_from_point_cloud',
+        gaussian_phase: 'B_gsplat_trained',
+        gravity_align: { method: 'floor_ransac+y_flip+x_mirror' },
+      },
+    });
+    expect(shouldLoadEnvironmentAsPointCloud(m)).toBe(false);
+  });
+
   it('does not double-prefix __dev_dgx_proxy', () => {
     const once = resolveTaskModelUrl('/api/v1/system/jobs/x/download?asset=manifest', DEV_DGX_PROXY_PREFIX);
     expect(once).toBe(`${DEV_DGX_PROXY_PREFIX}/api/v1/system/jobs/x/download?asset=manifest`);

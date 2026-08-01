@@ -49,12 +49,20 @@ Overlay config (copy reference): `3DAIGC-API/mcp/yaml/xr_ai_3daigc_overlay.yaml`
 
 ## Start stack (DGX)
 
-**One command** (API health check + MCP + full xr-ai sample):
+**One command** (DGX hub + Surface proxy for Galaxy XR):
 
 ```bash
-cd /home/sifr/OpenNexus3DStudio
+bash /home/sifr/3DAIGC-API/mcp/scripts/start_xr_voice_full.sh
+bash /home/sifr/3DAIGC-API/mcp/scripts/verify_xr_voice_stack.sh
+```
+
+DGX hub only (no Surface proxy — headset will get **connection refused** on `<SURFACE_LAN_IP>:8443`):
+
+```bash
 bash /home/sifr/3DAIGC-API/mcp/scripts/run_xr_ai_3daigc_stack.sh
 ```
+
+**Galaxy XR URL:** `https://<SURFACE_LAN_IP>:8443` (Surface proxy → DGX `:8088`). Not bare `<SURFACE_LAN_IP>`, not `http://`.
 
 Prerequisites only (API + MCP, no voice stack):
 

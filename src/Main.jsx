@@ -5,6 +5,7 @@ import App from './App.jsx'
 import './App.css'
 
 const IwsdkImmersive = React.lazy(() => import('./pages/IwsdkImmersive.jsx'))
+const StudioPage = React.lazy(() => import('./pages/StudioPage.jsx'))
 import { initRemoteLogClient } from './library/remoteLogClient.js'
 import { initNativeFaceBridge } from './library/nativeFaceBridge.js'
 import { initNativeFaceRelayFromUrl } from './library/nativeFaceRelay.js'
@@ -78,6 +79,14 @@ const appTree = (
           element={
             <Suspense fallback={<div style={{ padding: 16, color: '#ccc' }}>Loading XR Lab…</div>}>
               <IwsdkImmersive />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/studio"
+          element={
+            <Suspense fallback={<div style={{ padding: 16, color: '#ccc' }}>Loading Studio…</div>}>
+              <StudioPage />
             </Suspense>
           }
         />

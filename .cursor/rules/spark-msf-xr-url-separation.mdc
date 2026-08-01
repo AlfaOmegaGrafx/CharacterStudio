@@ -14,4 +14,6 @@ See workspace rule `spark-msf-xr-url-separation.mdc` and `docs/NVIDIA_XR_AI_INTE
 
 Run both proxies: `npm run dev:spark-proxies`. Verify: `npm run verify:dev-proxies`.
 
+**Agent start (from DGX):** `bash /home/sifr/3DAIGC-API/mcp/scripts/start_xr_voice_full.sh` — starts DGX hub **and** Surface `:8443` proxy (scheduled task; do not use SSH `Start-Process`).
+
 Never assign XR Voice to `:8453` or Scene Assembler to `:8443` on Surface.

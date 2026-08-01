@@ -7,8 +7,10 @@ export const MAX_TOTAL_IMAGES = MAX_REFERENCE_IMAGES + 1;
 
 /** Task types that accept multiple photos (primary + references). */
 export const MULTI_IMAGE_TASK_TYPES = new Set([
+  'image-to-3d',
   'image-to-splat',
   'image-to-world',
+  'environment-scan',
   'avatar-from-image',
 ]);
 
@@ -47,8 +49,14 @@ export function multiImageUploadHint(taskType) {
   if (taskType === 'image-to-world') {
     return 'Optional extra angles stored for future fusion. Primary photo drives the environment splat.';
   }
+  if (taskType === 'environment-scan') {
+    return 'Prefer one continuous walk video. Or select ≥3 ordered frames from Galaxy XR outward cameras while walking.';
+  }
   if (taskType === 'avatar-from-image') {
     return 'Add front/side/back photos when you have them. With 2+ photos, TRELLIS multiview fuses views for mesh quality.';
+  }
+  if (taskType === 'image-to-3d') {
+    return 'Add front/side/back photos for TRELLIS multiview mesh (2–8 views). Mark the best reference angle as Primary.';
   }
   return '';
 }

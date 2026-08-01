@@ -5,6 +5,8 @@ import {
   XR_LOCOMOTION_MODE_AVATAR,
   XR_LOCOMOTION_MODE_VIEWPOINT,
   alignXrLocomotionRigToViewport,
+  applyDesktopViewFromXr,
+  captureXrViewAsDesktop,
   snapTurnLocomotionRigAroundViewer,
 } from '../library/sceneManagerXrLocomotion.js';
 
@@ -203,5 +205,48 @@ describe('SceneManagerXrLocomotion', () => {
       emit: vi.fn(),
     };
     expect(alignXrLocomotionRigToViewport(sceneManager)).toBe(false);
+  });
+
+  it('maps XR headset pose into desktop OrbitControls space (undoes rig offset)', () => {
+    const wrapper = new THREE.Group();
+    wrapper.position.set(0, 0.2, -0.5);
+    const rig = new THREE.Group();
+    rig.position.set(1, 0, 2);
+    wrapper.add(rig);
+    const scene = new THREE.Scene();
+    scene.add(wrapper);
+    wrapper.updateMatrixWorld(true);
+
+    const camera = new THREE.PerspectiveCamera();
+    // Headset world position (reference space)
+    camera.position.set(3, 1.6, 1);
+    camera.lookAt(3, 1.6, 0);
+    camera.updateMatrixWorld(true);
+
+    const controls = { target: new THREE.Vector3(), update: vi.fn() };
+    const sceneManager = {
+      camera,
+      controls,
+      vrSceneWrapper: wrapper,
+      xrLocomotionRig: rig,
+      preXRCameraPosition: new THREE.Vector3(0, 1.6, 5),
+      preXRCameraTarget: new THREE.Vector3(0, 1.0, 0),
+      preXRCameraZoom: 1,
+      renderer: { xr: { isPresenting: true } },
+    };
+
+    const view = captureXrViewAsDesktop(sceneManager);
+    expect(view).toBeTruthy();
+    // Desktop pos = inv(rig.world) * headsetWorld
+    const expected = new THREE.Vector3(3, 1.6, 1);
+    const inv = new THREE.Matrix4().copy(rig.matrixWorld).invert();
+    expected.applyMatrix4(inv);
+    expect(view.position.x).toBeCloseTo(expected.x, 4);
+    expect(view.position.z).toBeCloseTo(expected.z, 4);
+
+    applyDesktopViewFromXr(sceneManager, view);
+    expect(camera.position.x).toBeCloseTo(view.position.x, 5);
+    expect(controls.target.x).toBeCloseTo(view.target.x, 5);
+    expect(controls.update).toHaveBeenCalled();
   });
 });

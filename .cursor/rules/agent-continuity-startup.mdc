@@ -1,0 +1,29 @@
+---
+description: Auto-run agent continuity verify at every Cursor session start (RepoResident, MindLink, SessionMem, sync rules)
+alwaysApply: true
+---
+
+# Agent continuity at session start (mandatory)
+
+Do **not** wait for the user to ask. On the **first agent turn of every new chat/session** in this workspace:
+
+1. **Run** (DGX):
+   ```bash
+   bash scripts/verify-agent-continuity.sh --all-repos
+   ```
+   Surface:
+   ```powershell
+   .\scripts\verify-agent-continuity.ps1
+   ```
+2. If FAIL → fix missing rules/hooks/files in the same turn, then re-run until PASS (or report a true blocker).
+3. **Load memory** (read, don't skip):
+   - RepoResident: `.agent/STATE.md`, `CLAUDE.md`
+   - MindLink: `.brain/MEMORY.md`, `.brain/SESSION.md` (+ `.agent/areas/mindlink.md`)
+   - Cursor memory bank: `memory-bank/activeContext.md` when present
+4. **Hooks** also fire `sessionStart` / `workspaceOpen` → `.cursor/hooks/session-continuity.sh` (and `~/.cursor/hooks/` on DGX). Treat hook `OPENNEXUS_CONTINUITY_STATUS` as a hint; still run the script if you have not verified this session.
+5. After DGX edits under `src/`, auto-push:
+   ```bash
+   bash scripts/sync-changes-to-pc.sh --include-src --retry-until-complete
+   ```
+
+SessionMem team sync (`sync-sessionmem-team.sh`) after milestones when memories changed — do not skip silently if the user said “remember” / continuity / push to Surface.

@@ -30,8 +30,9 @@ if [[ -z "$IWSDK_ROOT" || ! -d "$IWSDK_ROOT/packages/core" ]]; then
 fi
 
 need_build=0
-for pkg in core locomotor xr-input cli vite-plugin-dev reference; do
-  tgz="$IWSDK_ROOT/packages/$pkg/iwsdk-$pkg.tgz"
+for pkg in core locomotor xr-input cli vite-plugin-dev reference vite-plugin-gltf-optimizer vite-plugin-uikitml; do
+  # tgz names: iwsdk-core.tgz, iwsdk-vite-plugin-gltf-optimizer.tgz, ...
+  tgz="$IWSDK_ROOT/packages/$pkg/iwsdk-${pkg}.tgz"
   if [[ ! -f "$tgz" ]]; then
     need_build=1
     break
@@ -58,6 +59,8 @@ npm install --no-save \
   "@iwsdk/xr-input@file:$IWSDK_ROOT/packages/xr-input/iwsdk-xr-input.tgz" \
   "@iwsdk/cli@file:$IWSDK_ROOT/packages/cli/iwsdk-cli.tgz" \
   "@iwsdk/vite-plugin-dev@file:$IWSDK_ROOT/packages/vite-plugin-dev/iwsdk-vite-plugin-dev.tgz" \
+  "@iwsdk/vite-plugin-gltf-optimizer@file:$IWSDK_ROOT/packages/vite-plugin-gltf-optimizer/iwsdk-vite-plugin-gltf-optimizer.tgz" \
+  "@iwsdk/vite-plugin-uikitml@file:$IWSDK_ROOT/packages/vite-plugin-uikitml/iwsdk-vite-plugin-uikitml.tgz" \
   "@iwsdk/reference@file:$IWSDK_ROOT/packages/reference/iwsdk-reference.tgz"
 
 echo ""
