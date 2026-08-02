@@ -22,10 +22,15 @@ export const AUTO_RIG_MODES = {
   FULL: 'full',
   SKIN: 'skin',
   TEMPLATE: 'template',
+  APPEARANCE_COMPONENT: 'appearance_component',
+  CREATURE_TEMPLATE: 'creature_template',
 };
 
 /** UniRig-only — SkinTokens rejects template mode on the API. */
 export const TEMPLATE_RIG_MODEL_ID = 'unirig_auto_rig';
+
+/** Appearance Editor wearable fit (slot-aware VRM component). */
+export const APPEARANCE_COMPONENT_RIG_MODEL_ID = 'appearance_component_auto_rig';
 
 /**
  * @param {string} [rigMode]
