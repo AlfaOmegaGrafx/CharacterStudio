@@ -19,6 +19,7 @@ const REQUIRED_DEPENDENCIES = [
   'draco3dgltf',
   '@pixiv/three-vrm',
   '@iwsdk/core',
+  '@xyflow/react',
 ];
 
 function main() {
