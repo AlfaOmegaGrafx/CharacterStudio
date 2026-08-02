@@ -51,6 +51,27 @@ export function objectNameFromFilename(filename) {
   return normalizeObjectName(stem);
 }
 
+/**
+ * Prefer an explicit object_name, then a clean task display name (not a type+prompt fallback).
+ * @param {{ options?: { object_name?: string }, name?: string, type?: string, prompt?: string }} [task]
+ * @returns {string|null}
+ */
+export function resolveCarriedObjectName(task) {
+  if (!task || typeof task !== 'object') return null;
+  const fromOptions = normalizeObjectName(task.options?.object_name);
+  if (fromOptions) return fromOptions;
+  const fromName = normalizeObjectName(task.name);
+  if (!fromName) return null;
+  // Ignore auto-generated "Task Type - prompt…" labels when chaining.
+  const typeLabel = String(task.type || '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  if (typeLabel && fromName.toLowerCase().startsWith(typeLabel.toLowerCase())) {
+    return null;
+  }
+  return fromName;
+}
+
 export function withObjectNamePayload(payload, options) {
   const name = normalizeObjectName(options?.object_name);
   if (!name) return payload;

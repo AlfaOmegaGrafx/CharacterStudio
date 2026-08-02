@@ -407,10 +407,51 @@ const IMAGE_TO_TEXTURED_MESH_FEATURE = 'image_to_textured_mesh';
 export const API_MAX_MESH_VERTICES = 210000;
 
 /**
- * TRELLIS.2 decimation_target (faces) for avatar-from-image so the rig step can upload the GLB.
- * Default TRELLIS.2 target (1M) often exceeds the upload vertex limit.
+ * Hard ceiling for generation / retopo face budgets — equal to the API upload cap.
+ * Never request more than this for `decimation_target` / `target_face_count`.
  */
-export const AVATAR_MESH_DECIMATION_TARGET = 100000;
+export const PIPELINE_MESH_DECIMATION_MAX = API_MAX_MESH_VERTICES;
+
+/**
+ * Default face budget: as close to the API cap as possible without exceeding it.
+ * Used for Image/Text → 3D, Avatar from Image, and Mesh Decimate.
+ */
+export const PIPELINE_MESH_DECIMATION_TARGET = API_MAX_MESH_VERTICES;
+
+/**
+ * TRELLIS.2 `decimation_target` for avatar-from-image (same pipeline face budget).
+ */
+export const AVATAR_MESH_DECIMATION_TARGET = PIPELINE_MESH_DECIMATION_TARGET;
+
+/**
+ * Default TRELLIS v1 `mesh_simplify` keep-ratio. 1.0 pairs with the full face budget;
+ * the slider still scales `decimation_target` down when lowered.
+ */
+export const PIPELINE_MESH_SIMPLIFY_DEFAULT = 1;
+
+/**
+ * @param {unknown} n
+ * @returns {number}
+ */
+export function clampPipelineDecimationTarget(n) {
+  const v = Math.round(Number(n));
+  const fallback = PIPELINE_MESH_DECIMATION_TARGET;
+  if (!Number.isFinite(v) || v <= 0) return fallback;
+  return Math.max(1000, Math.min(PIPELINE_MESH_DECIMATION_MAX, v));
+}
+
+/**
+ * Default mesh-generation options that keep later pipeline steps in budget.
+ * @returns {{ mesh_simplify: number, model_parameters: { decimation_target: number } }}
+ */
+export function getPipelineSafeMeshGenerationDefaults() {
+  return {
+    mesh_simplify: PIPELINE_MESH_SIMPLIFY_DEFAULT,
+    model_parameters: {
+      decimation_target: PIPELINE_MESH_DECIMATION_TARGET,
+    },
+  };
+}
 
 /** Valid mesh model ids for avatar-from-image (image → textured mesh step). */
 export function getMeshModelsForAvatarFromImage() {

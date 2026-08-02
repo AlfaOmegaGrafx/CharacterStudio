@@ -35,3 +35,27 @@ export function parseJobHandoffFromLocation(locationLike = typeof window !== 'un
     prompt: params.get('prompt') || null,
   };
 }
+
+/**
+ * Studio canvas → viewport handoff (`/?loadMesh=<job-download-or-absolute-url>`).
+ * @returns {string|null}
+ */
+export function parseLoadMeshFromLocation(locationLike = typeof window !== 'undefined' ? window.location : null) {
+  if (!locationLike?.search) return null;
+  const params = new URLSearchParams(locationLike.search);
+  const raw = (params.get('loadMesh') || '').trim();
+  return raw || null;
+}
+
+/**
+ * Remove `loadMesh` from the URL without a navigation (avoids reload loops).
+ */
+export function clearLoadMeshFromLocation(locationLike = typeof window !== 'undefined' ? window.location : null) {
+  if (!locationLike?.search || typeof window === 'undefined') return;
+  const params = new URLSearchParams(locationLike.search);
+  if (!params.has('loadMesh')) return;
+  params.delete('loadMesh');
+  const next = params.toString();
+  const path = locationLike.pathname || '/';
+  window.history.replaceState({}, '', next ? `${path}?${next}` : path);
+}
