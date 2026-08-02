@@ -545,9 +545,5 @@ native/android-xr-face-bridge/.jdk/
 .agent/scratch/*
 !.agent/scratch/.gitkeep
 
-# Moat — creature / appearance auto-rig (local only; never commit/push)
-src/library/creaturePipelineCatalog.js
-src/library/creatureFaceRetarget.js
-src/library/appearanceClothing.js
-src/__tests__/creatureFaceRetarget.test.js
-src/__tests__/appearanceClothing.test.js
+# Creature / appearance pipeline modules are REQUIRED by App.jsx / catalogs on main
+# (were briefly ignored as "moat"; that broke Vercel). Keep them tracked.
