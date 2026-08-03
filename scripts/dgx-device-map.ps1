@@ -4,9 +4,10 @@ $DgxDisplayRemote = 'DGX Sparks remote'
 $DgxAliasLocal    = 'DGX-Local'
 $DgxAliasRemote   = 'DGX-Remote'
 $DgxHostLocal     = 'dgx-spark.local'
-$DgxHostRemote    = '<REDACTED_TAILSCALE_IP>'
-$DgxUser          = 'sifr'
-$DgxLanIp         = '<DGX_LAN_IP>'
+# Prefer env overrides so real Tailscale/LAN IPs stay off git history.
+$DgxHostRemote    = if ($env:DGX_TAILSCALE_IP) { $env:DGX_TAILSCALE_IP } else { 'dgx-spark.local' }
+$DgxUser          = if ($env:DGX_SSH_USER) { $env:DGX_SSH_USER } else { 'sifr' }
+$DgxLanIp         = if ($env:DGX_LAN_IP) { $env:DGX_LAN_IP } else { 'dgx-spark.local' }
 
 # Old NVIDIA Sync names only — NOT DGX-Local/DGX-Remote, NOT hostnames (dgx-spark.local etc.)
 $DgxLegacyNvsyncAliases = @(
