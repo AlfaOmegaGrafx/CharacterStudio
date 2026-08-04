@@ -153,7 +153,7 @@ export default function IwsdkImmersive() {
 
       <p className="iwsdk-immersive-hint">
         On the headset use your PC LAN IP (not localhost), e.g.{' '}
-        <code>https://<SURFACE_LAN_IP>:3000/xr?worldManifest=/worlds/my-world/world.manifest.json</code>{' '}
+        <code>https://&lt;SURFACE_LAN_IP&gt;:3000/xr?worldManifest=/worlds/my-world/world.manifest.json</code>{' '}
         — reload the full page before Enter VR (hot reload breaks XR on device).{' '}
         <strong>Props use IWSDK grab</strong> (DistanceGrabbable + OneHandGrabbable); splat env is visual only.
         Stuck? Exit XR here, red panel, or Menu/B.
