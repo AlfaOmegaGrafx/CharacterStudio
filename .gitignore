@@ -355,6 +355,8 @@ PRODUCTION_READINESS.md
 todo.md
 CLAUDE.md
 memory-bank/
+# MindLink session memory (ops topology / LAN notes — local only)
+.brain/
 graphify-out/
 cursor_fluxpose_vs_mbient_labs_comparis.md
 HOW_TO_USE_NEW_FEATURES.md

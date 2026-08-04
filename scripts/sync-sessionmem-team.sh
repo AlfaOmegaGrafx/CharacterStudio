@@ -51,7 +51,7 @@ ssh "$SURFACE_SSH" "powershell -NoProfile -Command \"New-Item -ItemType Director
 scp -r "${TEAM_DIR}/." "${SURFACE_SSH}:${SURFACE_ROOT}/.sessionmem-team/"
 
 echo "[3/5] Surface sessionmem sync ..."
-ssh "$SURFACE_SSH" "powershell -NoProfile -Command \"\$env:Path = '<SURFACE_LOCAL_BIN>;' + \$env:Path; cd '<OPENNEXUS_REPO_ROOT>'; if (Get-Command sessionmem -ErrorAction SilentlyContinue) { sessionmem sync } else { Write-Host 'sessionmem not on Surface PATH — skipped' }\""
+ssh "$SURFACE_SSH" "powershell -NoProfile -Command \"\$env:Path = 'C:\\Users\\<SURFACE_USER>\\.local\\bin;' + \$env:Path; cd '<OPENNEXUS_REPO_ROOT>'; if (Get-Command sessionmem -ErrorAction SilentlyContinue) { sessionmem sync } else { Write-Host 'sessionmem not on Surface PATH — skipped' }\""
 
 echo "[4/5] Pull .sessionmem-team/ <- Surface ..."
 scp -r "${SURFACE_SSH}:${SURFACE_ROOT}/.sessionmem-team/." "${TEAM_DIR}/"
