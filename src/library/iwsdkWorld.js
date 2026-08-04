@@ -1,6 +1,6 @@
 /**
  * IWSDK immersive world bootstrap (hybrid: separate from SceneManager).
- * @see docs/IWSDK_INTEGRATION.md
+ * @see docs/docs/IWSDK_INTEGRATION.md
  */
 import {
   World,

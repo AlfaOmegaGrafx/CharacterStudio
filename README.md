@@ -106,7 +106,7 @@ Task types: **Image to Gaussian Splat**, **Image to World (splat + props)**, **E
 - [Multi-image splat & avatar roadmap](docs/MULTI_IMAGE_SPLAT_ROADMAP.md) — 1 vs 2–8 photo routing
 - [NVIDIA XR AI + 3DAIGC (DGX)](docs/NVIDIA_XR_AI_INTEGRATION.md) — voice VLM → mesh jobs on Galaxy XR
 - [Dev machine topology](docs/DEV_MACHINE_TOPOLOGY.md) — Surface + DGX Spark roles, incremental sync, Galaxy XR URLs
-- [World package format](docs/WORLD_PACKAGE.md) — splats, props, env-scan metric calibration
+- [World package format](docs/docs/WORLD_PACKAGE.md) — splats, props, env-scan metric calibration
 - [LingBot environment scan (API)](https://github.com/AlfaOmegaGrafx/3DAIGC-API/blob/main/docs/LINGBOT_MAP_ENVIRONMENT_SCAN.md) — Phase A/B, gravity, door metric
 - [Spatial fabric / RP1](docs/SPATIAL_FABRIC_INTEGRATION.md) — Task Manager vs World Library publish
 - [Phygital NFC roadmap](docs/PHYGITAL_NFC_APPAREL_ROADMAP.md) — mock `/verify/:serialId` (Phase 0)
@@ -131,8 +131,8 @@ Task types: **Image to Gaussian Splat**, **Image to World (splat + props)**, **E
   - **Samsung Galaxy XR** (Chrome WebXR) as primary on-device XR target
   - Floor-aligned reference spaces for proper positioning
   - **WebXR expression tracking** when the browser exposes `expression-tracking` (VRM blink / mouth)
-  - **Native face relay** when it does not — companion APK + dev-server ingest (see [OpenXR face tracking](docs/OPENXR_FACE_TRACKING_ANDROID_XR.md))
-- **IWSDK immersive lab** (`/xr`): Meta [Immersive Web SDK](https://iwsdk.dev/) route for locomotion, grab, and spatial interaction experiments — separate from main VRM authoring; validated on **Galaxy XR** at `https://<your-PC-LAN-IP>:3000/xr` ([integration guide](docs/IWSDK_INTEGRATION.md))
+  - **Native face relay** when it does not — companion APK + dev-server ingest (see [OpenXR face tracking](docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md))
+- **IWSDK immersive lab** (`/xr`): Meta [Immersive Web SDK](https://iwsdk.dev/) route for locomotion, grab, and spatial interaction experiments — separate from main VRM authoring; validated on **Galaxy XR** at `https://<your-PC-LAN-IP>:3000/xr` ([integration guide](docs/docs/IWSDK_INTEGRATION.md))
 - **Gaussian splats (3DGS)**: Spark.js splat rendering in the main viewport (`SceneManager`); TripoSplat, WorldMirror, COLMAP, **LingBot Environment Scan** (Phase A/B), and world packages from **3DAIGC-API**; **WebXR grab + locomotion on `/`** (distance/proximity grab, thumbstick move/turn) with worlds + VRM in one session — see [Gaussian splats (3DGS)](#gaussian-splats-3dgs)
 - **Spatial fabric (RP1 / OMB)**: **Publish RP1** on completed mesh tasks; **Validate OMB tier** on GLB export; explore in Open Metaverse Browser–compatible fabrics — [`docs/SPATIAL_FABRIC_INTEGRATION.md`](docs/SPATIAL_FABRIC_INTEGRATION.md)
 - **XR AI panel**: `XrAiPanel` + `xrHubConfig.js` — in-app hub status and handoff to DGX **xr-ai** / MCP (parallel to voice-only stack)
@@ -240,9 +240,9 @@ WebXR (VR/AR) requires HTTPS to work. For local development:
 
    Run `npm run dev` in **one terminal only** so the server uses port 3000. If the port is in use, the dev server will exit instead of using 3001, 3002, etc.
 
-**Galaxy XR tips:** Use **https** (not http). Add your PC LAN IP to the cert (e.g. `mkcert localhost 127.0.0.1 <SURFACE_LAN_IP>`). On `/xr`, do a **full page reload** before Enter VR (hot reload can drop the XR session). Headset console output is forwarded to `logs/remote-log.txt` in dev (`?remoteLog=1` or APK “Open in Chrome” adds it). See [HTTPS setup](docs/HTTPS_SETUP.md) and [IWSDK integration](docs/IWSDK_INTEGRATION.md).
+**Galaxy XR tips:** Use **https** (not http). Add your PC LAN IP to the cert (e.g. `mkcert localhost 127.0.0.1 <SURFACE_LAN_IP>`). On `/xr`, do a **full page reload** before Enter VR (hot reload can drop the XR session). Headset console output is forwarded to `logs/remote-log.txt` in dev (`?remoteLog=1` or APK “Open in Chrome” adds it). See [HTTPS setup](docs/docs/HTTPS_SETUP.md) and [IWSDK integration](docs/docs/IWSDK_INTEGRATION.md).
 
-**Face tracking on Galaxy XR:** Use the **main app** (`/`), not `/xr`. If Chrome does not grant WebXR expression APIs, install the [**OpenNexus XR Face** APK](native/android-xr-face-bridge/README.md), run `npm run dev`, open **⋮ → Open in Chrome for WebXR (+ face)** — [OpenXR / Android XR face docs](docs/OPENXR_FACE_TRACKING_ANDROID_XR.md). APK currently uses **Jetpack XR only** (`OPENXR_ENABLED=false`); OpenXR face is preserved for a future runtime.
+**Face tracking on Galaxy XR:** Use the **main app** (`/`), not `/xr`. If Chrome does not grant WebXR expression APIs, install the [**OpenNexus XR Face** APK](native/android-xr-face-bridge/README.md), run `npm run dev`, open **⋮ → Open in Chrome for WebXR (+ face)** — [OpenXR / Android XR face docs](docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md). APK currently uses **Jetpack XR only** (`OPENXR_ENABLED=false`); OpenXR face is preserved for a future runtime.
 
 ### Building
 
@@ -445,12 +445,12 @@ Open3DStudio was the original foundation of this project, providing core 3D AIGC
 - [Multi-image splat roadmap](docs/MULTI_IMAGE_SPLAT_ROADMAP.md) - Primary + reference photos for splat/avatar
 - [Avatar pipeline (client)](docs/AVATAR_PIPELINE.md) - Photo → rigged GLB/VRM, optional splat preview, key client files
 - [IWSDK Option A Migration Blueprint](docs/IWSDK_OPTION_A_MIGRATION_BLUEPRINT.md) - IWSDK → main app migration; Spark world building stack
-- [IWSDK Integration](docs/IWSDK_INTEGRATION.md) - Meta Immersive Web SDK (`/xr` route, Galaxy XR testing, optional PC emulator)
-- [OpenXR Face Tracking (Android XR)](docs/OPENXR_FACE_TRACKING_ANDROID_XR.md) - Native face relay when Chrome lacks expression-tracking
+- [IWSDK Integration](docs/docs/IWSDK_INTEGRATION.md) - Meta Immersive Web SDK (`/xr` route, Galaxy XR testing, optional PC emulator)
+- [OpenXR Face Tracking (Android XR)](docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md) - Native face relay when Chrome lacks expression-tracking
 - [Android XR Face Bridge APK](native/android-xr-face-bridge/README.md) - Companion app build and Chrome handoff
-- [Webcam / Avatar Control](docs/WEBCAM_AVATAR_CONTROL.md) - Desktop webcam + XR expression paths
-- [WebXR Floor Anchoring & Backgrounds](docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md) - XR implementation details
-- [HTTPS Setup Guide](docs/HTTPS_SETUP.md) - WebXR development setup
+- [Webcam / Avatar Control](docs/docs/WEBCAM_AVATAR_CONTROL.md) - Desktop webcam + XR expression paths
+- [WebXR Floor Anchoring & Backgrounds](docs/docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md) - XR implementation details
+- [HTTPS Setup Guide](docs/docs/HTTPS_SETUP.md) - WebXR development setup
 - [Dev machine topology & sync cheat sheet](docs/DEV_MACHINE_TOPOLOGY.md) - Surface vs DGX roles, incremental sync, cross-sync prevention
 - [Three.js WebGPU & WebXR Migration](docs/THREEJS_WEBGPU_WEBXR_MIGRATION.md) - Technical migration guide
 - [x402 & Thirdweb Integration](src/library/README_X402_INTEGRATION.md) - Blockchain integration details

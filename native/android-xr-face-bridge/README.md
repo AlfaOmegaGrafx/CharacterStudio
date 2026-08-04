@@ -6,7 +6,7 @@ The web side is implemented in:
 
 - [`src/library/nativeFaceBridge.js`](../../src/library/nativeFaceBridge.js)
 - [`src/library/xrExpressionTrackingDriver.js`](../../src/library/xrExpressionTrackingDriver.js) (`applyExpressionWeightRecordToVRMS`)
-- [`docs/OPENXR_FACE_TRACKING_ANDROID_XR.md`](../../docs/OPENXR_FACE_TRACKING_ANDROID_XR.md)
+- [`docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md`](../../docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md)
 
 ## Gradle project (this folder)
 

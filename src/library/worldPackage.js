@@ -1,6 +1,6 @@
 /**
  * World Package — manifest format for explorable splat environments + mesh props.
- * @see docs/WORLD_PACKAGE.md
+ * @see docs/docs/WORLD_PACKAGE.md
  */
 
 import { ensureAbsoluteUrl, get3daigcAuthHeaders } from './taskManager.js';

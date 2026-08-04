@@ -2,7 +2,7 @@
 
 This document has been **consolidated** into:
 
-- `docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
+- `docs/docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
 
 That document is the single source of truth for current XR positioning:
 - **X = 0**

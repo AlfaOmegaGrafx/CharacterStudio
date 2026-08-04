@@ -15,7 +15,7 @@ This document explains how to integrate the saved scene controls back into the O
 - **Features**: Responsive design, compact layout, hover effects
 
 ### 3. Documentation
-- **Location**: `docs/SceneControlsIntegration.md` (this file)
+- **Location**: `docs/docs/SceneControlsIntegration.md` (this file)
 - **Purpose**: Integration instructions and usage guide
 
 ## 🔧 Integration Steps

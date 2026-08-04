@@ -6,7 +6,7 @@
  * - Mesh props: DistanceGrabbable (ray + trigger) + OneHandGrabbable (proximity + grip)
  * - Optional collider GLB: LocomotionEnvironment for walk/teleport
  *
- * @see docs/WORLD_PACKAGE.md
+ * @see docs/docs/WORLD_PACKAGE.md
  */
 import {
   DistanceGrabbable,

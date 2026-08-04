@@ -168,7 +168,7 @@ Open locally: `https://localhost:3000/xr` (HTTPS required for WebXR on device).
 
 1. ~~**Wire `@iwsdk/core` in code**~~ — done (`/xr` route + `iwsdkWorld.js`).
 2. ~~**Add dev tooling**~~ — `vite-plugin-dev` + `cli` + `reference` + MCP sync (done).
-3. **Galaxy XR / Chrome** — test WebXR on device (HTTPS required; see `docs/HTTPS_SETUP.md`).
+3. **Galaxy XR / Chrome** — test WebXR on device (HTTPS required; see `docs/docs/HTTPS_SETUP.md`).
 4. **Later** — UIKitML, GLTF optimizer, Meta Spatial, optional Gaussian splat worlds (e.g. [sensai-webxr-worldmodels](https://github.com/V4C38/sensai-webxr-worldmodels)).
 
 Face tracking in Chrome XR remains a separate concern (relay / future `expression-tracking`); **not wired on `/xr`**. For VRM + APK face relay, use the main app at `https://<PC-LAN-IP>:3000/?nativeFaceRelay=1` (see [WEBCAM_AVATAR_CONTROL.md](./WEBCAM_AVATAR_CONTROL.md)).

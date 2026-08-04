@@ -60,7 +60,7 @@ Separately, **`expression-tracking` is optional**: if your Chrome build does not
 
 See also [`DEV_MACHINE_TOPOLOGY.md`](./DEV_MACHINE_TOPOLOGY.md) for which machine each client IP represents (Surface vs Galaxy XR vs DGX).
 
-1. Start the dev server on your **dev workstation** (`npm run dev` on the Surface — default **https://** on port **3000** when certs exist; see `docs/HTTPS_SETUP.md`).
+1. Start the dev server on your **dev workstation** (`npm run dev` on the Surface — default **https://** on port **3000** when certs exist; see `docs/docs/HTTPS_SETUP.md`).
 2. On the **headset**, open the app at **`https://<Surface-LAN-IP>:3000/?remoteLog=1`** (and add `&xrExpressionProbe=1` if you want the extra probe). **`https://localhost:3000` on the headset** targets the **headset itself**, not the Surface—use the workstation’s LAN address.
 3. Logs are **POSTed** to `/__remote_log` on the same origin; Vite prints them and appends **`logs/remote-log.txt`**. The prefix `[::ffff:…]` is the **browser client** (headset `<HEADSET_LAN_IP>`, Surface `<SURFACE_LAN_IP>`, etc.).
 4. You should see a browser console line: **`[RemoteLog] Forwarding console to /__remote_log`** when the client is active.

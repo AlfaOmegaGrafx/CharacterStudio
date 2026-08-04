@@ -2,7 +2,7 @@
 
 This document has been **consolidated** into:
 
-- `docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
+- `docs/docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
 
 That document reflects the current correct VR behavior:
 - Floor alignment uses floor-aligned reference spaces (`bounded-floor` preferred on Galaxy XR)

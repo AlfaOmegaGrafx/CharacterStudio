@@ -202,4 +202,4 @@ curl -X POST .../world-generation/image-to-world \
 
 - `docs/MULTI_IMAGE_SPLAT_ROADMAP.md` — WorldMirror reconstruction (done)
 - `thirdparty/HY-World-2.0/hyworld2/worldgen/README.md` — upstream stages
-- `OpenNexus3DStudio/docs/WORLD_PACKAGE.md` — client manifest contract
+- `OpenNexus3DStudio/docs/docs/WORLD_PACKAGE.md` — client manifest contract

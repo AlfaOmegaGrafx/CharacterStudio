@@ -12,7 +12,7 @@ git add \
   .env.example \
   docs/api/api.md \
   docs/SPATIAL_FABRIC_INTEGRATION.md \
-  docs/WORLD_PACKAGE.md \
+  docs/docs/WORLD_PACKAGE.md \
   NVIDIA_XR_AI_INTEGRATION.md \
   scripts/publish-omb-xr-only.sh \
   scripts/xr-spark-hub-proxy.mjs \

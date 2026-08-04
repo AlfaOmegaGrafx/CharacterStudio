@@ -171,6 +171,6 @@ try {
   console.error('   Windows: Install from https://slproweb.com/products/Win32OpenSSL.html');
   console.error('   Or install Git for Windows (includes OpenSSL)\n');
   console.error('After installing, run: npm run setup-https\n');
-  console.error('Or see docs/HTTPS_SETUP.md for manual setup instructions');
+  console.error('Or see docs/docs/HTTPS_SETUP.md for manual setup instructions');
   process.exit(1);
 }

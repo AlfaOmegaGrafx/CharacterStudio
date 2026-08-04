@@ -2,7 +2,7 @@ This document has been **consolidated**.
 
 Please use:
 
-- `docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
+- `docs/docs/XR_MODE_FLOOR_ANCHORING_AND_BACKGROUNDS.md`
 
 It contains the current correct behavior for:
 - Android XR `bounded-floor` floor-level anchoring

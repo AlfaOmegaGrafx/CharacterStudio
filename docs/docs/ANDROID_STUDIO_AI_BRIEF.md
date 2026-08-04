@@ -148,9 +148,9 @@ See also [`OPENXR_FACE_TRACKING_ANDROID_XR.md`](./OPENXR_FACE_TRACKING_ANDROID_X
 | `src/library/nativeFaceBridge.js` | Consumes native weights |
 | `src/library/nativeFaceRelay.js` | Chrome SSE/poll from dev server |
 | `vite.config.js` | `__native_face_ingest` / `__native_face_sse` plugins |
-| `docs/OPENXR_FACE_TRACKING_ANDROID_XR.md` | Spec links, payload contract |
-| `docs/WEBCAM_AVATAR_CONTROL.md` | WebXR expression notes, remote logging |
-| `docs/DEV_MACHINE_TOPOLOGY.md` | Surface vs DGX vs headset; reading `remote-log` IPs |
+| `docs/docs/OPENXR_FACE_TRACKING_ANDROID_XR.md` | Spec links, payload contract |
+| `docs/docs/WEBCAM_AVATAR_CONTROL.md` | WebXR expression notes, remote logging |
+| `docs/docs/DEV_MACHINE_TOPOLOGY.md` | Surface vs DGX vs headset; reading `remote-log` IPs |
 
 ## One-sentence summary
 
