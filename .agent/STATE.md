@@ -3,7 +3,7 @@
 Session: 16
 Focus: Env-scan lock-in pushed
 Active: API f0182c6 + OpenNexus c0f88c3d on main
-Next: restart API workers when idle; x402 SKUs later
+Next: restart API workers when idle; hosted billing tiers later
 Blocked: none
 
 ## Watch-outs

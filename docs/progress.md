@@ -34,11 +34,11 @@ Internal timed waves and unreleased companion/speech/motion strategy live **only
 
 ## Not done (public-safe)
 
-- OMB publish x402 SKU + enterprise hosted-fabric packaging
+- OMB publish + enterprise hosted-fabric packaging
 - World Library RP1 for splat-only worlds (needs props in manifest)
-- x402 on API before job queue
-- x402 env-scan Phase A/B SKUs + frame-budget upsell
+- Micropayments on API before job queue (hosted)
+- Env-scan Phase A/B billing tiers + denser-frame options (pricing in local roadmap)
 - Live passport registry + SUN validation
-- Wallet/x402 UI wired
+- Wallet / pay UI wired
 - §11 personalized import + API fields
 - Companion handoff docs (Pro) — details in local roadmap only

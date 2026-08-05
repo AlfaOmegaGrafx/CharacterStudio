@@ -86,7 +86,7 @@ Task types: **Image to Gaussian Splat**, **Image to World (splat + props)**, **E
 ### What's not done yet
 
 - **Splat-only world RP1** — World Library **RP1** needs mesh props in the manifest; pure Gaussian environments need a prop-generation path for OMB publish
-- **Env-scan x402 SKUs** — Phase A vs Phase B billing + frame-budget upsell (monetization roadmap v3.3.7)
+- **Env-scan billing** — Phase A vs Phase B job tiers + denser-frame options (hosted pricing in local roadmap only)
 - **Gaussian-VRM / RGBAvatar body pipelines** — scan-based full-body avatars and highest-fidelity head attachment; separate from viewport TripoSplat preview (not the same code path as `image-to-splat`).
 
 ### Where it lives (architecture)

@@ -53,8 +53,9 @@ If the rig was **backward** or **floating at hips**, re-run after pulling latest
 | Rigged AIGC mesh | Skeleton only until wrap |
 | [Arc2Avatar](https://arc2avatar.github.io/) (future) | FLAME on head **splats** |
 | TripoSplat | Preview only, not rigged VRM |
+| SkinTokens / creature_template | **No MeshMonk** — bone-level jaw/eye mapping when morph targets are absent (see `creatureFaceRetarget.js`) |
 
-XR face tracking needs wrap or head-stitch — tracked in API docs.
+XR face tracking on humanoid AIGC faces needs wrap or head-stitch — tracked in API docs. Non-humanoid template rigs use bone retarget, not MeshMonk wrap.
 
 ## Uploaded VRM (not AIGC)
 

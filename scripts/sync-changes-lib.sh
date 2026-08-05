@@ -123,7 +123,7 @@ sync_is_dgx_owned_path() {
       sync-sessionmem-team.sh|sync-sessionmem-team.ps1|verify-agent-continuity.sh|verify-agent-continuity.ps1|verify-agent-continuity-hook.ps1)
         return 0
         ;;
-      verify-public-build-env.mjs|pre-commit-block-secrets.sh|verify_krea2_text_to_3d_pipeline.sh)
+      verify-public-build-env.mjs|verify-build-deps.mjs|verify-jsx-placeholders.mjs|verify-moat-docs.mjs|pre-commit-block-secrets.sh|verify_krea2_text_to_3d_pipeline.sh)
         return 0
         ;;
       *)
@@ -136,6 +136,9 @@ sync_is_dgx_owned_path() {
     return 0
   fi
   if [[ "$rel" =~ ^\.cursor/hooks\.json$ || "$rel" =~ ^\.cursor/hooks/ ]]; then
+    return 0
+  fi
+  if [[ "$rel" =~ ^\.cursor/rules/jsx-scrub-placeholders\.mdc || "$rel" =~ ^\.cursor/rules/security-local-only\.mdc ]]; then
     return 0
   fi
   if [[ "$rel" =~ ^\.cursor/rules/surface-sync-reminder\.mdc || "$rel" =~ ^\.cursor/rules/dgx-sync-reminder\.mdc ]]; then

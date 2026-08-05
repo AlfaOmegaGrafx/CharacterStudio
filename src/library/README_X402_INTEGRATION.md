@@ -5,7 +5,7 @@ This document describes the integrated x402 payment protocol and Thirdweb wallet
 ## Overview
 
 OpenNexus3DStudio now supports:
-1. **Base x402 Protocol** - Native Base network micropayments ($0.001-0.005 per request)
+1. **Base x402 Protocol** - Native Base network micropayments (sub-cent per request; exact tiers in local roadmap)
 2. **Thirdweb x402 Facilitator** - Multi-chain micropayments (170+ EVM chains + Solana)
 3. **Thirdweb Smart Wallets** - ERC-4337 Account Abstraction with gas sponsorship
 4. **Thirdweb In-App Wallets** - Seamless onboarding (email, social, phone, passkey)
@@ -133,7 +133,7 @@ VITE_HELIUS_KEY=your_helius_key
 
 ## Benefits
 
-1. **Lower Micropayment Costs**: Base x402 enables $0.001-0.005 payments vs $0.10-1.00
+1. **Lower Micropayment Costs**: Base x402 enables sub-cent payments vs typical card/on-chain checkout minimums
 2. **Multi-Chain Support**: Thirdweb facilitator supports 170+ chains
 3. **Better UX**: Smart wallets sponsor gas, In-App wallets eliminate extension requirements
 4. **Autonomous Agents**: x402 enables machine-to-machine payments
