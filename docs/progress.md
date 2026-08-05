@@ -1,6 +1,6 @@
 # Progress
 
-**Updated:** 2026-07-30
+**Updated:** 2026-08-05
 
 ## What works
 
@@ -13,21 +13,32 @@
 - **Phygital mock** — `/verify/:serialId`, `docs/PHYGITAL_*`, passport schema in `src/library/phygital/`.
 - VRM upload passthrough protected; app chrome layout protected.
 - DGX **3DAIGC-API** `:7842` with `/api/v1/spatial-fabric/*` after restart + `.env` MSF vars.
+- **Docs canonicalization** (Aug 2026) — twin `docs/*.md` removed; content under `docs/docs/`; JSX scrub placeholder verify for production builds.
 
-## Moat documentation (2026-07-30)
+## Tracker (where todos live)
 
-- **MONETIZATION_ROADMAP.md** v3.3.7 (local only, gitignored) — LingBot env-scan Phase A/B SKUs planned; Pitch Deck/ aligned when next deck pass runs.
-- Internal: `memory-bank/spacetime-moat-strategy.md`
+| Doc | Role | Git |
+|-----|------|-----|
+| **`MONETIZATION_ROADMAP.md`** (repo root) | Canonical timed roadmap + checkboxes | **Gitignored moat** — sync via scp only |
+| **`docs/progress.md`** (this file) | Shipped / not-done snapshot | **Tracked** — keep **public-safe** only (no pricing, no unreleased model/strategy names) |
+| Feature roadmaps | e.g. `docs/MULTI_IMAGE_SPLAT_ROADMAP.md`, `docs/PHYGITAL_NFC_APPAREL_ROADMAP.md` | Tracked when public |
+
+Internal timed waves and unreleased companion/speech/motion strategy live **only** in the gitignored monetization roadmap (and `memory-bank/`), not here.
+
+## Moat documentation (pointers only)
+
+- Full strategy: `memory-bank/spacetime-moat-strategy.md` (gitignored)
 - Public overview: `docs/SPACETIME_MOAT_OVERVIEW.md`
-- Dev topology: `docs/DEV_MACHINE_TOPOLOGY.md` (incremental sync cheat sheet)
+- Dev topology: `docs/docs/DEV_MACHINE_TOPOLOGY.md`
 - Env-scan API: `3DAIGC-API/docs/LINGBOT_MAP_ENVIRONMENT_SCAN.md`
 
-## Not done (moat-critical)
+## Not done (public-safe)
 
-- OMB publish x402 SKU + enterprise hosted-fabric packaging (roadmap § near-term)
+- OMB publish x402 SKU + enterprise hosted-fabric packaging
 - World Library RP1 for splat-only worlds (needs props in manifest)
 - x402 on API before job queue
-- x402 `world_env_scan_a` / `world_env_scan_b` (Phase A vs B + frame-budget upsell)
+- x402 env-scan Phase A/B SKUs + frame-budget upsell
 - Live passport registry + SUN validation
 - Wallet/x402 UI wired
 - §11 personalized import + API fields
+- Companion handoff docs (Pro) — details in local roadmap only
