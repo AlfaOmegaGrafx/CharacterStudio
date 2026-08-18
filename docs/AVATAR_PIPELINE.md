@@ -50,12 +50,36 @@ If the rig was **backward** or **floating at hips**, re-run after pulling latest
 | Source | Expressions |
 |--------|-------------|
 | `template.vrm` | 124+ morphs, ARKit/Vive — **on template topology** |
-| Rigged AIGC mesh | Skeleton only until wrap |
-| [Arc2Avatar](https://arc2avatar.github.io/) (future) | FLAME on head **splats** |
+| `template_wrap` (Phase 5) | Same morphs on **stitched template head** + AIGC body |
+| Bones-only `template` rig | Skeleton only on AIGC mesh (no face morphs) |
+| [Arc2Avatar](https://arc2avatar.github.io/) | FLAME on head **splats** (same wrap track, `head_track: arc2avatar\|both`) |
 | TripoSplat | Preview only, not rigged VRM |
 | SkinTokens / creature_template | **No MeshMonk** — bone-level jaw/eye mapping when morph targets are absent (see `creatureFaceRetarget.js`) |
 
-XR face tracking on humanoid AIGC faces needs wrap or head-stitch — tracked in API docs. Non-humanoid template rigs use bone retarget, not MeshMonk wrap.
+## Humanoid head track (same task as GNM / MeshMonk)
+
+Body+Cloth / `template_wrap` uses one **head track** with engine chips (`head_track`):
+
+| Chip | Engine |
+|------|--------|
+| **GNM + MeshMonk** | Ethnicity → GNM identity; AIGC face → MeshMonk/RBF `face_likeness` on template morph head (XR blendshapes) |
+| **Arc2Avatar** | Selfie → SDS head `.ply` attached to Head bone (photoreal splat) |
+| **Both** | MeshMonk/GNM warp **and** Arc2Avatar overlay |
+
+XR face tracking stays on the template morph head; Arc2Avatar is the photoreal overlay.
+
+## Studio: Body+Cloth (head track)
+
+OpenNexus Studio template **`krea_composable_avatar_body`** (UI: Body+Cloth):
+
+1. **Head track** — Image options chips (GNM+MeshMonk / Arc2Avatar / Both). Selfie required when Arc2Avatar is selected.
+2. **Body** — text prompt → Krea neck-open → TRELLIS.2 → `template_wrap`.
+3. **Clothing** — Appearance slots via `parseClothingAccessoryLines` with smart layering (full-body pajamas replace Chest/Legs/Waist; boxing gloves exclude wristwear; Head/Hands/Neck smart segmentation stacks compatible accessories e.g. baseball cap + glasses). Culling layers **0 / 1 / 2** — see [Appearance](docs/Developers/Pages/appearance.md) and [Modder Culling Layers](docs/Modders/getting-started.md#culling-layers).
+4. **Compose** — Arc2Avatar PLY parents to Head bone when SDS finishes (`attachHeadSplatToBody`).
+
+Selfie is never the body image. Task Manager “Avatar head (Arc2Avatar)” is a shortcut into the same track.
+
+See `HEAD_TRACK` in `avatarPipelineCatalog.js`, API `MESH_WRAP_ROADMAP.md` + `ARC2AVATAR_TRACK.md`.
 
 ## Uploaded VRM (not AIGC)
 
