@@ -49,7 +49,7 @@ If the rig was **backward** or **floating at hips**, re-run after pulling latest
 
 | Source | Expressions |
 |--------|-------------|
-| `template.vrm` | 124+ morphs, ARKit/Vive — **on template topology** |
+| ICT morph head (`ict`) | ARKit morphs on ICT topology |
 | `template_wrap` (Phase 5) | Same morphs on **stitched template head** + AIGC body |
 | Bones-only `template` rig | Skeleton only on AIGC mesh (no face morphs) |
 | [Arc2Avatar](https://arc2avatar.github.io/) | FLAME on head **splats** (same wrap track, `head_track: arc2avatar\|both`) |
