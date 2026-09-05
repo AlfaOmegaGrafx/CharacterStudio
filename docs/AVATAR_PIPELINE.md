@@ -3,8 +3,8 @@
 ## Quick path
 
 1. Connect to **3DAIGC-API** (DGX)  
-2. Task: **Avatar from Image (mesh + template VRM)**  
-3. Upload photo → wait for mesh + template rig  
+2. Task: **Avatar from Image (TRELLIS to VRM)**  
+3. Upload photo → wait for TRELLIS to VRM  
 4. Viewport loads rigged GLB  
 5. Optional: **Download VRM after pipeline** → browser saves `*.vrm`  
 
@@ -29,7 +29,7 @@ Template **expression names** can be embedded in VRM meta; **mesh morphs** requi
 |------|-----|----------|
 | Image to 3D | mesh-generation | GLB mesh |
 | Auto Rigging → Template VRM | auto-rigging `rig_mode: template` | Rigged GLB |
-| Avatar from Image | mesh + template rig chain | Rigged GLB + optional VRM download |
+| Avatar from Image | TRELLIS to VRM | Rigged GLB + optional VRM download |
 | Image to Gaussian Splat | splat-generation | Spark `SplatMesh` |
 | Avatar from Image + splat checkbox | above + TripoSplat parallel | Body GLB + splat preview |
 
@@ -49,7 +49,7 @@ If the rig was **backward** or **floating at hips**, re-run after pulling latest
 
 | Source | Expressions |
 |--------|-------------|
-| ICT morph head (`ict`) | ARKit morphs on ICT topology |
+| Template morph head | ARKit morphs on template topology |
 | `template_wrap` (Phase 5) | Same morphs on **stitched template head** + AIGC body |
 | Bones-only `template` rig | Skeleton only on AIGC mesh (no face morphs) |
 | [Arc2Avatar](https://arc2avatar.github.io/) | FLAME on head **splats** (same wrap track, `head_track: arc2avatar\|both`) |
